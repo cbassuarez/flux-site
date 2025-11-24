@@ -2,40 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
-
 body {
-  @apply bg-black text-zinc-50 font-sans antialiased;
+  @apply bg-white text-slate-900 font-sans antialiased;
 }
 
 #root {
   @apply min-h-screen;
 }
 
-/* Layout helpers */
-.flux-gradient-border {
-  background: radial-gradient(circle at top left, rgba(0, 205, 254, 0.45), transparent 60%),
-              radial-gradient(circle at top right, rgba(0, 205, 254, 0.25), transparent 55%);
+/* Hero background motif */
+.bg-flux-hero {
+  background:
+    radial-gradient(circle at top left, rgba(0, 205, 254, 0.18), transparent 55%),
+    radial-gradient(circle at top right, rgba(0, 205, 254, 0.14), transparent 55%),
+    radial-gradient(circle at bottom, rgba(15, 23, 42, 0.04), transparent 60%),
+    #ffffff;
+  animation: flux-hero-drift 18s ease-in-out infinite alternate;
 }
 
-.code-panel {
-  @apply bg-zinc-950/80 border border-zinc-800/80 rounded-2xl shadow-flux-card;
+@keyframes flux-hero-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, -8px, 0);
+  }
 }
 
-.code-header {
-  @apply flex items-center justify-between px-4 py-2 border-b border-zinc-800/80 text-xs text-zinc-400;
+/* Hero code scroll behavior */
+.hero-code-scroll {
+  padding: 0.75rem 1rem 0.9rem 1rem;
 }
 
-.code-header-badges {
-  @apply flex items-center gap-2;
+.hero-code-scroll pre {
+  margin: 0;
 }
 
-.badge {
-  @apply inline-flex items-center rounded-full bg-zinc-900/70 border border-zinc-700/80 px-2 py-0.5 text-[11px] uppercase tracking-wide text-zinc-300;
-}
+@media (min-width: 768px) {
+  .hero-code-scroll {
+    max-height: min(900px, 50vh);
+    overflow-y: auto;
+  }
 
-.badge-pill {
-  @apply rounded-full bg-fluxBlue/10 border border-fluxBlue/60 text-fluxBlue;
+  .hero-code-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .hero-code-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .hero-code-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.7);
+    border-radius: 999px;
+  }
 }
