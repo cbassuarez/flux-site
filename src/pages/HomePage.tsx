@@ -98,10 +98,13 @@ export default function HomePage() {
     <div className="space-y-14 lg:space-y-16">
       <HeroSection>
         <motion.div
-          className="space-y-10"
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-6"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0, y: 18 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
+          }}
         >
           <motion.div
             className="space-y-6"
@@ -130,8 +133,7 @@ export default function HomePage() {
               variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
               transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
             >
-              Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time.
-              The core abstraction is a well-defined JSON intermediate representation —
+              Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time. The core abstraction is a well-defined JSON intermediate representation —
               <span className="font-mono text-xs sm:text-sm text-slate-800"> FluxDocument</span> — designed to be parsed, inspected, and transformed by tools.
             </motion.p>
 
@@ -164,27 +166,27 @@ export default function HomePage() {
               </motion.a>
             </motion.div>
           </motion.div>
+        </motion.div>
 
-          <motion.div
-            className="grid gap-4 lg:grid-cols-2"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
-              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
-                <code>{fluxSource}</code>
-              </pre>
-            </CodePanel>
+        <motion.div
+          className="grid gap-4 lg:grid-cols-2"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+        >
+          <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
+            <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+              <code>{fluxSource}</code>
+            </pre>
+          </CodePanel>
 
-            <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
-              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
-                <code>
-                  {error ? `// Failed to parse example:\n// ${error}` : irJson}
-                </code>
-              </pre>
-            </CodePanel>
-          </motion.div>
+          <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
+            <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+              <code>
+                {error ? `// Failed to parse example:\n// ${error}` : irJson}
+              </code>
+            </pre>
+          </CodePanel>
         </motion.div>
       </HeroSection>
 
