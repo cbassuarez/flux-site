@@ -1,60 +1,214 @@
-import HeroDemo from "../components/HeroDemo";
+import { useMemo } from "react";
+import { motion } from "framer-motion";
+import { parseDocument } from "@flux-lang/core";
+import { HeroSection } from "../components/HeroSection";
+import { CodePanel } from "../components/CodePanel";
 
 export default function HomePage() {
+  const fluxSource = `document {
+  meta {
+    title   = "Landing Example";
+    version = "0.1.0";
+  }
+
+  state {
+    param tempo : float [40, 72] @ 60;
+  }
+
+  grid main {
+    topology = grid;
+    size { rows = 1; cols = 3; }
+
+    cell c1 {
+      tags    = [ noise ];
+      content = "";
+      dynamic = 0.6;
+    }
+
+    cell c2 {
+      tags    = [ noise ];
+      content = "";
+      dynamic = 0.6;
+    }
+
+    cell c3 {
+      tags    = [ noise ];
+      content = "";
+      dynamic = 0.4;
+    }
+  }
+
+  runtime {
+    eventsApply    = "deferred";
+    docstepAdvance = [ timer(8 s) ];
+  }
+
+  rule growNoise(mode = docstep, grid = main) {
+    when cell.content == "" and neighbors.all().dynamic > 0.5
+    then {
+      cell.content = "noise";
+    }
+  }
+}`;
+
+  const { irJson, error } = useMemo(() => {
+    try {
+      const doc = parseDocument(fluxSource);
+      const json = JSON.stringify(doc, null, 2);
+      return { irJson: json, error: null as string | null };
+    } catch (err) {
+      const msg =
+        (err as Error)?.message ?? "Unknown error while parsing Flux example.";
+      return { irJson: "", error: msg };
+    }
+  }, [fluxSource]);
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 16 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.5,
+        delay: 0.05 + i * 0.05,
+        ease: [0.25, 0.1, 0.25, 1],
+      },
+    }),
+  };
+
+  const infoCards = [
+    {
+      title: "Language-first design",
+      body:
+        "Flux is specified in terms of a typed AST and a canonical JSON IR. The grammar is versioned, tested, and designed to be embedded inside other tools — not just a one-off DSL.",
+    },
+    {
+      title: "A real runtime kernel",
+      body:
+        "The v0.1 runtime kernel supports docstep rules, a grid topology, and neighbor-aware dynamics via neighbors.all and neighbors.orth.",
+    },
+    {
+      title: "Tooling from day one",
+      body:
+        "The same core library powers a CLI, a VS Code extension, and can be embedded in web tooling — including this site's IR view.",
+    },
+  ];
+
   return (
-    <div className="space-y-10">
-      <section className="mt-8 max-w-3xl">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-zinc-50">
-          Flux is a score language for{" "}
-          <span className="text-fluxBlue">
-            procedurally evolving music scores and parts
-          </span>
-          .
-        </h1>
-        <p className="mt-4 text-sm sm:text-base text-zinc-300 leading-relaxed">
-          Flux treats a musical score as a living system: grids of cells, rules,
-          and runtime behavior that can evolve over time. The core abstraction
-          is a well-defined JSON intermediate representation —
-          <span className="font-mono"> FluxDocument</span> — designed to be
-          parsed, inspected, and transformed by tools.
-        </p>
-        <p className="mt-3 text-sm sm:text-base text-zinc-400">
-          This site introduces the Flux v0.1 IR, the language surface, and the
-          tooling stack: a core parser/runtime, a CLI, and editor integrations.
-        </p>
-      </section>
+    <div className="space-y-14 lg:space-y-16">
+      <HeroSection>
+        <motion.div
+          className="space-y-10"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <motion.div
+            className="space-y-6"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0, y: 16 },
+              visible: {
+                opacity: 1,
+                y: 0,
+                transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+              },
+            }}
+          >
+            <motion.h1
+              className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
+              variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ type: "spring", stiffness: 120, damping: 16 }}
+            >
+              Flux is a score language for
+              <span className="block text-sky-600">procedurally evolving music scores and parts.</span>
+            </motion.h1>
 
-      <HeroDemo />
+            <motion.p
+              className="max-w-2xl text-sm sm:text-base text-slate-600 leading-relaxed"
+              variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time.
+              The core abstraction is a well-defined JSON intermediate representation —
+              <span className="font-mono text-xs sm:text-sm text-slate-800"> FluxDocument</span> — designed to be parsed, inspected, and transformed by tools.
+            </motion.p>
 
-      <section className="mt-10 grid gap-6 md:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/60 p-4">
-          <h2 className="text-sm font-semibold text-zinc-100">
-            Language-first design
-          </h2>
-          <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
-            Flux is specified in terms of a typed AST and a canonical JSON IR.
-            The grammar is versioned, tested, and designed to be embedded inside
-            other tools — not just a one-off DSL.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/60 p-4">
-          <h2 className="text-sm font-semibold text-zinc-100">
-            A real runtime kernel
-          </h2>
-          <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
-            The v0.1 runtime kernel supports docstep rules, a grid topology, and
-            neighbor-aware dynamics via <span className="font-mono">neighbors.all</span>{" "}
-            and <span className="font-mono">neighbors.orth</span>.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/60 p-4">
-          <h2 className="text-sm font-semibold text-zinc-100">
-            Tooling from day one
-          </h2>
-          <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
-            The same core library powers a CLI, a VS Code extension, and can be
-            embedded in web tooling — including this site&apos;s IR view.
-          </p>
+            <motion.p
+              className="text-sm sm:text-base text-slate-600"
+              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+            >
+              This site introduces the Flux v0.1 IR, the language surface, and the tooling stack: a core parser/runtime, a CLI, and editor integrations.
+            </motion.p>
+
+            <motion.div
+              className="flex flex-wrap items-center gap-3 pt-1"
+              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+            >
+              <motion.a
+                href="/docs"
+                className="inline-flex items-center rounded-full bg-[#00cdfe] px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-sky-300"
+                whileHover={{ scale: 1.06, rotate: 0.3 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                Get started
+              </motion.a>
+              <motion.a
+                href="https://github.com/cbassuarez/flux"
+                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
+                whileHover={{ scale: 1.04, translateY: -2 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                View on GitHub
+              </motion.a>
+            </motion.div>
+          </motion.div>
+
+          <motion.div
+            className="grid gap-4 lg:grid-cols-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+                <code>{fluxSource}</code>
+              </pre>
+            </CodePanel>
+
+            <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+                <code>
+                  {error ? `// Failed to parse example:\n// ${error}` : irJson}
+                </code>
+              </pre>
+            </CodePanel>
+          </motion.div>
+        </motion.div>
+      </HeroSection>
+
+      <section className="border-t border-slate-200 bg-white pt-12 pb-6">
+        <div className="mx-auto max-w-6xl px-2 sm:px-4 md:px-0">
+          <div className="grid gap-6 md:grid-cols-3">
+            {infoCards.map((card, idx) => (
+              <motion.article
+                key={card.title}
+                className="rounded-xl border border-slate-200 bg-slate-50/80 p-5 shadow-sm transition hover:border-sky-200 hover:bg-white/90"
+                custom={idx}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.2 }}
+                variants={cardVariants}
+                whileHover={{ y: -6, boxShadow: "0 16px 36px rgba(15,23,42,0.08)" }}
+              >
+                <h2 className="mb-2 text-sm font-semibold text-slate-900">
+                  {card.title}
+                </h2>
+                <p className="text-xs leading-relaxed text-slate-600">{card.body}</p>
+              </motion.article>
+            ))}
+          </div>
         </div>
       </section>
     </div>
