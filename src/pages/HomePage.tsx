@@ -63,14 +63,6 @@ export default function HomePage() {
     }
   }, [fluxSource]);
 
-  const handleCopySource = () => {
-    navigator.clipboard.writeText(fluxSource).catch(() => undefined);
-  };
-
-  const handleCopyIR = () => {
-    navigator.clipboard.writeText(error ? "" : irJson).catch(() => undefined);
-  };
-
   const cardVariants = {
     hidden: { opacity: 0, y: 16 },
     visible: (i: number) => ({
@@ -106,89 +98,109 @@ export default function HomePage() {
     <div className="space-y-14 lg:space-y-16">
       <HeroSection>
         <motion.div
-          className="space-y-6"
-          initial={{ opacity: 0, y: 16 }}
+          className="space-y-10"
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          <motion.h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
-            initial={{ opacity: 0, y: 10 }}
+          <motion.div
+            className="space-y-6"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0, y: 16 },
+              visible: {
+                opacity: 1,
+                y: 0,
+                transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+              },
+            }}
+          >
+            <motion.h1
+              className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
+              variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ type: "spring", stiffness: 120, damping: 16 }}
+            >
+              Flux is a score language for
+              <span className="block text-sky-600">procedurally evolving music scores and parts.</span>
+            </motion.h1>
+
+            <motion.p
+              className="max-w-2xl text-sm sm:text-base text-slate-600 leading-relaxed"
+              variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time.
+              The core abstraction is a well-defined JSON intermediate representation —
+              <span className="font-mono text-xs sm:text-sm text-slate-800"> FluxDocument</span> — designed to be parsed, inspected, and transformed by tools.
+            </motion.p>
+
+            <motion.p
+              className="text-sm sm:text-base text-slate-600"
+              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+            >
+              This site introduces the Flux v0.1 IR, the language surface, and the tooling stack: a core parser/runtime, a CLI, and editor integrations.
+            </motion.p>
+
+            <motion.div
+              className="flex flex-wrap items-center gap-3 pt-1"
+              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+            >
+              <motion.a
+                href="/docs"
+                className="inline-flex items-center rounded-full bg-[#00cdfe] px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-sky-300"
+                whileHover={{ scale: 1.06, rotate: 0.3 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                Get started
+              </motion.a>
+              <motion.a
+                href="https://github.com/cbassuarez/flux"
+                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
+                whileHover={{ scale: 1.04, translateY: -2 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                View on GitHub
+              </motion.a>
+            </motion.div>
+          </motion.div>
+
+          <motion.div
+            className="grid gap-4 lg:grid-cols-2"
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.08 }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            Flux is a score language for
-            <span className="block text-sky-600">procedurally evolving music scores and parts.</span>
-          </motion.h1>
+            <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+                <code>{fluxSource}</code>
+              </pre>
+            </CodePanel>
 
-          <p className="max-w-2xl text-sm sm:text-base text-slate-600 leading-relaxed">
-            Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time.
-            The core abstraction is a well-defined JSON intermediate representation —
-            <span className="font-mono text-xs sm:text-sm text-slate-800"> FluxDocument</span> — designed to be parsed, inspected, and transformed by tools.
-          </p>
-
-          <p className="text-sm sm:text-base text-slate-600">
-            This site introduces the Flux v0.1 IR, the language surface, and the tooling stack: a core parser/runtime, a CLI, and editor integrations.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <motion.a
-              href="/docs"
-              className="inline-flex items-center rounded-full bg-[#00cdfe] px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-sky-300"
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              Get started
-            </motion.a>
-            <motion.a
-              href="https://github.com/cbassuarez/flux"
-              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              View on GitHub
-            </motion.a>
-          </div>
+            <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+                <code>
+                  {error ? `// Failed to parse example:\n// ${error}` : irJson}
+                </code>
+              </pre>
+            </CodePanel>
+          </motion.div>
         </motion.div>
-
-        <div className="space-y-4">
-          <CodePanel
-            title="Flux source"
-            subtitle="v0.1 · document → FluxDocument"
-            onCopy={handleCopySource}
-          >
-            <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
-              <code>{fluxSource}</code>
-            </pre>
-          </CodePanel>
-
-          <CodePanel
-            title="Flux IR"
-            subtitle="FluxDocument · parseDocument(source)"
-            onCopy={handleCopyIR}
-          >
-            <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
-              <code>
-                {error ? `// Failed to parse example:\n// ${error}` : irJson}
-              </code>
-            </pre>
-          </CodePanel>
-        </div>
       </HeroSection>
 
-      <section className="border-t border-slate-200 bg-white">
+      <section className="border-t border-slate-200 bg-white pt-12 pb-6">
         <div className="mx-auto max-w-6xl px-2 sm:px-4 md:px-0">
           <div className="grid gap-6 md:grid-cols-3">
             {infoCards.map((card, idx) => (
               <motion.article
                 key={card.title}
-                className="rounded-xl border border-slate-200 bg-slate-50/80 p-5 shadow-sm transition hover:border-sky-200 hover:bg-white"
+                className="rounded-xl border border-slate-200 bg-slate-50/80 p-5 shadow-sm transition hover:border-sky-200 hover:bg-white/90"
                 custom={idx}
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.2 }}
                 variants={cardVariants}
-                whileHover={{ y: -4, boxShadow: "0 18px 45px rgba(15,23,42,0.08)" }}
+                whileHover={{ y: -6, boxShadow: "0 16px 36px rgba(15,23,42,0.08)" }}
               >
                 <h2 className="mb-2 text-sm font-semibold text-slate-900">
                   {card.title}

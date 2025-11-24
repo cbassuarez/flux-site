@@ -2,10 +2,10 @@ export default function DocsPage() {
   return (
     <div className="space-y-8">
       <section className="max-w-3xl">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-zinc-50">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">
           Flux v0.1 language &amp; IR
         </h1>
-        <p className="mt-3 text-sm sm:text-base text-zinc-300 leading-relaxed">
+        <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
           Flux v0.1 is defined in terms of a canonical JSON intermediate
           representation called <span className="font-mono">FluxDocument</span>.
           You obtain this IR by parsing a source string with{" "}
@@ -16,13 +16,13 @@ export default function DocsPage() {
       </section>
 
       <section className="max-w-3xl space-y-3">
-        <h2 className="text-lg font-semibold text-zinc-100">
+        <h2 className="text-lg font-semibold text-slate-900">
           Top-level shape
         </h2>
-        <p className="text-sm text-zinc-300">
+        <p className="text-sm text-slate-600">
           At a high level, a Flux document looks like:
         </p>
-        <pre className="code-panel text-xs leading-relaxed p-4 font-mono text-zinc-100 overflow-auto">
+        <pre className="code-panel text-xs leading-relaxed p-4 font-mono text-slate-800 overflow-auto border border-slate-200 bg-slate-50 rounded-xl">
           <code>{`interface FluxDocument {
   meta: FluxMeta;
   state: FluxState;
@@ -32,7 +32,7 @@ export default function DocsPage() {
   runtime?: FluxRuntimeConfig;
 }`}</code>
         </pre>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-slate-500">
           The IR normalizes the grammar into a discriminated union of node
           kinds. Expressions, statements, rules, and runtime configuration are
           all represented as explicit JSON nodes, not opaque strings.
@@ -40,10 +40,10 @@ export default function DocsPage() {
       </section>
 
       <section className="max-w-3xl space-y-3">
-        <h2 className="text-lg font-semibold text-zinc-100">
+        <h2 className="text-lg font-semibold text-slate-900">
           IR details &amp; versioning
         </h2>
-        <p className="text-sm text-zinc-300">
+        <p className="text-sm text-slate-600">
           The full v0.1 IR specification — including all node kinds, fields, and
           examples — lives in the Flux core repository alongside executable
           tests. The IR is versioned via{" "}
@@ -55,7 +55,7 @@ export default function DocsPage() {
             href="https://github.com/cbassuarez/flux"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-950/70 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-fluxBlue/80 hover:text-fluxBlue transition-colors"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-sky-300 hover:text-sky-800 transition-colors"
           >
             View IR spec on GitHub
           </a>
@@ -63,7 +63,7 @@ export default function DocsPage() {
             href="https://github.com/cbassuarez/flux/tree/main/packages/core"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950/60 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:border-sky-300"
           >
             Core package: @flux-lang/core
           </a>

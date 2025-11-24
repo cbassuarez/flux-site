@@ -4,16 +4,12 @@ import type { ReactNode } from "react";
 type CodePanelProps = {
   title: string;
   subtitle?: string;
-  copyLabel?: string;
-  onCopy?: () => void;
   children: ReactNode;
 };
 
 export function CodePanel({
   title,
   subtitle,
-  copyLabel = "Copy",
-  onCopy,
   children,
 }: CodePanelProps) {
   return (
@@ -33,15 +29,6 @@ export function CodePanel({
             <span className="text-[11px] font-medium text-slate-400">{subtitle}</span>
           )}
         </div>
-        {onCopy && (
-          <button
-            type="button"
-            onClick={onCopy}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm transition hover:border-sky-300 hover:text-sky-700 hover:shadow-md"
-          >
-            {copyLabel}
-          </button>
-        )}
       </header>
 
       <div className="hero-code-scroll">{children}</div>
