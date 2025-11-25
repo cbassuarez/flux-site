@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { FluxMarkAnimated } from "./branding/FluxMarkAnimated";
+import { FluxMarkLogo } from "./FluxMarkLogo";
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
@@ -26,9 +26,7 @@ export function Header() {
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-sky-100 bg-white shadow-[0_0_24px_rgba(0,205,254,0.35)]">
-            <FluxMarkAnimated className="h-9 w-auto" />
-          </div>
+          <FluxMarkLogo />
           <div className="flex flex-col">
             <span className="text-sm font-semibold tracking-tight text-slate-900">Flux</span>
             <span className="text-[11px] text-slate-500">procedurally evolving music scores and parts.</span>
