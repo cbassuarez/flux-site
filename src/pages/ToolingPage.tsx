@@ -1,5 +1,6 @@
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
+import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -10,7 +11,12 @@ const tocItems = [
 
 export default function ToolingPage() {
   return (
-    <PageLayout title="Tooling" subtitle="Language kit: core library, CLI, and editor integrations." headerSlot={<PageTOC items={tocItems} />}>
+    <PageLayout
+      title="Tooling"
+      subtitle="Language kit: core library, CLI, and editor integrations."
+      eyebrow={<FluxBrandStrip subtitle="tooling" />}
+      headerSlot={<PageTOC items={tocItems} />}
+    >
       <section id="overview" className="space-y-3 scroll-mt-24">
         <h2 className="text-lg font-semibold text-slate-900">Tooling from day one</h2>
         <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
