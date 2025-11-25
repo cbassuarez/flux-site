@@ -14,7 +14,7 @@ export function CodePanel({
 }: CodePanelProps) {
   return (
     <motion.article
-      className="rounded-xl border border-slate-200 bg-slate-50/80 shadow-sm backdrop-blur"
+      className="code-panel flex min-h-[220px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 shadow-sm backdrop-blur"
       initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.3 }}

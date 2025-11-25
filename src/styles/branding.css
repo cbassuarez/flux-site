@@ -25,19 +25,6 @@
   margin-bottom: 0.75rem;
 }
 
-.hero-code-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-}
-
-@media (min-width: 768px) {
-  .hero-code-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 .flux-mark-pill {
   display: inline-flex;
   align-items: center;
@@ -94,26 +81,4 @@
 .flux-brand-strip-subtitle {
   font-size: 0.75rem;
   color: #475569;
-}
-/* Hero code grid: mobile-first, then 2 cols on large screens */
-.hero-code-grid {
-    display: grid;
-    width: 100%;
-    max-width: none;
-    gap: 1.5rem;          /* matches your overall spacing */
-    align-items: stretch;
-    grid-template-columns: minmax(0, 1fr); /* 1 column on mobile */
-}
-
-/* Make sure each panel can actually shrink inside the grid */
-.hero-code-grid .code-panel {
-    width: 100%;
-    min-width: 0;
-}
-
-/* Large screens: two columns, slightly weighted left */
-@media (min-width: 1024px) {
-    .hero-code-grid {
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-    }
 }
