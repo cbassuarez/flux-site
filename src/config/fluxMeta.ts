@@ -4,4 +4,4 @@
 export const FLUX_VERSION = "0.1.1";
 export const FLUX_REPO_URL = "https://github.com/cbassuarez/flux";
 export const FLUX_REPO_PERMALINK =
-  "https://github.com/cbassuarez/flux/tree/v0.1.1";
+  "https://github.com/cbassuarez/flux.git";
