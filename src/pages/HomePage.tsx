@@ -176,19 +176,19 @@ export default function HomePage() {
           <CliInstallWidget />
 
           <motion.div
-            className="mt-8 grid w-full gap-4 md:grid-cols-2 md:auto-rows-fr"
+            className="mt-8 grid w-full gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
           >
             <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
-              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-100">
                 <code>{fluxSource}</code>
               </pre>
             </CodePanel>
 
             <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
-              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-100">
                 <code>
                   {error ? `// Failed to parse example:\n// ${error}` : irJson}
                 </code>

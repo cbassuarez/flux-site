@@ -1,197 +1,60 @@
-// scripts/sync-flux-version.mjs
-import fs from "node:fs";
-import path from "node:path";
+#!/usr/bin/env node
+
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import https from "node:https";
-import http from "node:http";
 
-const FLUX_PKG_URL =
-  "https://raw.githubusercontent.com/cbassuarez/flux/main/packages/core/package.json";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-const REPO_URL = "https://github.com/cbassuarez/flux";
+const repoRoot = resolve(__dirname, "..");
+const fluxPkgPath = resolve(repoRoot, "node_modules/@flux-lang/core/package.json");
+const fluxMetaPath = resolve(repoRoot, "src/lib/fluxMeta.ts");
 
-function fetchJson(url) {
-  const proxy =
-    process.env.https_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTP_PROXY;
+function ensureFallbackMeta() {
+  const fallback = `// Fallback metadata for Flux version.
+// This file will be overwritten by scripts/sync-flux-version.mjs when @flux-lang/core is installed.
 
-  if (proxy) {
-    const proxyUrl = new URL(proxy);
-    const target = new URL(url);
-
-    return new Promise((resolve, reject) => {
-      const connectReq = http.request({
-        host: proxyUrl.hostname,
-        port: proxyUrl.port || 8080,
-        method: "CONNECT",
-        path: `${target.hostname}:443`,
-        headers: proxyUrl.username
-          ? {
-              "Proxy-Authorization":
-                "Basic " +
-                Buffer.from(
-                  `${proxyUrl.username}:${proxyUrl.password}`,
-                ).toString("base64"),
-            }
-          : undefined,
-      });
-
-      connectReq.on("connect", (res, socket) => {
-        if (res.statusCode !== 200) {
-          socket.destroy();
-          reject(
-            new Error(
-              `Proxy CONNECT failed. Status code: ${res.statusCode}`,
-            ),
-          );
-          return;
-        }
-
-        const req = https.get(
-          {
-            host: target.hostname,
-            port: 443,
-            path: `${target.pathname}${target.search}`,
-            agent: false,
-            socket,
-            servername: target.hostname,
-          },
-          (proxyRes) => {
-            if (proxyRes.statusCode !== 200) {
-              reject(
-                new Error(
-                  `Request failed. Status code: ${proxyRes.statusCode}`,
-                ),
-              );
-              proxyRes.resume();
-              return;
-            }
-
-            let data = "";
-            proxyRes.setEncoding("utf8");
-            proxyRes.on("data", (chunk) => {
-              data += chunk;
-            });
-            proxyRes.on("end", () => {
-              try {
-                const json = JSON.parse(data);
-                resolve(json);
-              } catch (err) {
-                reject(err);
-              }
-            });
-          },
-        );
-
-        req.on("error", (err) => {
-          reject(err);
-        });
-      });
-
-      connectReq.on("error", (err) => {
-        reject(err);
-      });
-
-      connectReq.end();
-    });
-  }
-
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, { family: 4 }, (res) => {
-        if (res.statusCode !== 200) {
-          reject(
-            new Error(
-              `Request failed. Status code: ${res.statusCode}`,
-            ),
-          );
-          res.resume();
-          return;
-        }
-
-        let data = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-        res.on("end", () => {
-          try {
-            const json = JSON.parse(data);
-            resolve(json);
-          } catch (err) {
-            reject(err);
-          }
-        });
-      })
-      .on("error", (err) => {
-        reject(err);
-      });
-  });
+export const fluxVersion = "0.0.0";
+export const fluxRepoUrl = "https://github.com/cbassuarez/flux";
+export const fluxRepoPermalink = fluxRepoUrl;
+`;
+  writeFileSync(fluxMetaPath, fallback);
+  console.warn(`[sync-flux-version] Wrote fallback ${fluxMetaPath}`);
 }
 
-async function main() {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-
-  const fluxMetaPath = path.resolve(
-    __dirname,
-    "../src/config/fluxMeta.ts",
-  );
-
-  let version = "0.0.0-dev";
-
-  try {
-    const pkg = await fetchJson(FLUX_PKG_URL);
-
-    if (typeof pkg.version === "string" && pkg.version.trim()) {
-      version = pkg.version.trim();
-      console.log(
-        `[sync-flux-version] Remote core version: ${version}`,
-      );
-    } else {
-      console.warn(
-        "[sync-flux-version] 'version' not found in remote package.json; using fallback",
-        version,
-      );
-    }
-  } catch (err) {
+function main() {
+  if (!existsSync(fluxPkgPath)) {
     console.warn(
-      "[sync-flux-version] Failed to fetch remote version; using existing fluxMeta.ts or fallback.",
+      `[sync-flux-version] Could not find ${fluxPkgPath}. ` +
+      `Make sure @flux-lang/core is installed before running the build.`
     );
-    console.warn(String(err?.message ?? err));
-
-    // If we already have a config file, keep it as-is.
-    if (fs.existsSync(fluxMetaPath)) {
-      console.warn(
-        "[sync-flux-version] Existing fluxMeta.ts found; leaving it unchanged.",
-      );
-      return;
+    if (!existsSync(fluxMetaPath)) {
+      ensureFallbackMeta();
     }
+    // Do not fail the build – just warn.
+    process.exit(0);
   }
 
-  const fileContents = `// This file is generated by scripts/sync-flux-version.mjs.
+  const pkg = JSON.parse(readFileSync(fluxPkgPath, "utf8"));
+  const version = pkg.version || "0.0.0";
+
+  const fluxRepoUrl = "https://github.com/cbassuarez/flux";
+  const tag = `v${version}`;
+  const fluxRepoPermalink = `${fluxRepoUrl}/tree/${tag}`;
+
+  const contents = `// This file is generated by scripts/sync-flux-version.mjs
 // Do not edit by hand.
 
-export const FLUX_VERSION = "${version}";
-export const FLUX_REPO_URL = "${REPO_URL}";
-export const FLUX_REPO_PERMALINK =
-  "${REPO_URL}/tree/v${version}";
+export const fluxVersion = "${version}";
+export const fluxRepoUrl = "${fluxRepoUrl}";
+export const fluxRepoPermalink = "${fluxRepoPermalink}";
 `;
 
-  fs.mkdirSync(path.dirname(fluxMetaPath), { recursive: true });
-  fs.writeFileSync(fluxMetaPath, fileContents, "utf8");
-
+  writeFileSync(fluxMetaPath, contents);
   console.log(
-    `[sync-flux-version] Wrote fluxMeta.ts with FLUX_VERSION = ${version}`,
+    `[sync-flux-version] Updated ${fluxMetaPath} to Flux version ${version}`
   );
 }
 
-main().catch((err) => {
-  console.warn(
-    "[sync-flux-version] Unexpected error:",
-    err?.message ?? err,
-  );
-  // Do NOT rethrow; we never want this to fail the build.
-});
+main();
