@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { FluxMarkAnimated } from "./branding/FluxMarkAnimated";
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
@@ -11,6 +12,7 @@ const NAV_ITEMS = [
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const location = useLocation();
 
   const closeMenu = () => setIsOpen(false);
@@ -22,14 +24,14 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-2xl border border-sky-100 bg-sky-50 shadow-[0_0_24px_rgba(0,205,254,0.35)] flex items-center justify-center">
-            <span className="text-xs font-semibold text-sky-600 tracking-widest">FX</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-sky-100 bg-white shadow-[0_0_24px_rgba(0,205,254,0.35)]">
+            <FluxMarkAnimated className="h-9 w-auto" />
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold tracking-tight text-slate-900">Flux</span>
-            <span className="text-[11px] text-slate-500">procedurally evolving music scores and parts</span>
+            <span className="text-[11px] text-slate-500">procedurally evolving music scores and parts.</span>
           </div>
         </Link>
 
@@ -38,25 +40,53 @@ export function Header() {
             <NavLink
               key={item.path}
               to={item.path}
-              className={({ isActive }) =>
-                [
-                  "transition-colors",
-                  isActive ? "flux-gradient-text font-semibold" : "hover:text-slate-900",
-                ].join(" ")
-              }
               end={item.path === "/"}
+              onMouseEnter={() => setHoveredPath(item.path)}
+              onMouseLeave={() => setHoveredPath(null)}
             >
-              {item.label}
+              {({ isActive }) => {
+                const showIndicator = isActive || hoveredPath === item.path;
+                return (
+                  <motion.span
+                    className="relative inline-flex flex-col items-center gap-1"
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <span
+                      className={[
+                        "transition-colors",
+                        isActive ? "flux-gradient-text font-semibold" : "text-slate-600 hover:text-slate-900",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </span>
+                    <AnimatePresence>
+                      {showIndicator && (
+                        <motion.span
+                          layoutId="nav-underline"
+                          className="block h-[3px] w-full rounded-full flux-gradient-bg"
+                          initial={{ opacity: 0, scaleX: 0.6 }}
+                          animate={{ opacity: 1, scaleX: 1 }}
+                          exit={{ opacity: 0, scaleX: 0.4 }}
+                          transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                        />
+                      )}
+                    </AnimatePresence>
+                  </motion.span>
+                );
+              }}
             </NavLink>
           ))}
-          <a
+          <motion.a
             href="https://github.com/cbassuarez/flux"
             className="hover:text-slate-900"
             target="_blank"
             rel="noreferrer"
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.97 }}
           >
             GitHub
-          </a>
+          </motion.a>
         </nav>
 
         <button

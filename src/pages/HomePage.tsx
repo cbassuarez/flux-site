@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { parseDocument } from "@flux-lang/core";
 import { HeroSection } from "../components/HeroSection";
 import { CodePanel } from "../components/CodePanel";
-import { FluxMark } from "../components/branding/FluxMark";
+import { FluxBadge } from "../components/FluxBadge";
+import { CliInstallWidget } from "../components/CliInstallWidget";
 
 export default function HomePage() {
   const fluxSource = `document {
@@ -98,7 +99,7 @@ export default function HomePage() {
   return (
     <div className="space-y-14 lg:space-y-16">
       <HeroSection>
-        <div className="w-full space-y-6">
+        <div className="flex w-full flex-col gap-10">
           <motion.div
             className="space-y-6"
             initial="hidden"
@@ -108,7 +109,7 @@ export default function HomePage() {
               visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
             }}
           >
-            <FluxMark variant="pill" className="hero-brand-pill" />
+            <FluxBadge className="hero-brand-pill" />
 
             <motion.div
               className="space-y-6"
@@ -124,7 +125,7 @@ export default function HomePage() {
               }}
             >
               <motion.h1
-                className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
+                className="max-w-4xl text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
                 variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
                 transition={{ type: "spring", stiffness: 120, damping: 16 }}
               >
@@ -133,7 +134,7 @@ export default function HomePage() {
               </motion.h1>
 
               <motion.p
-                className="max-w-2xl text-sm sm:text-base text-slate-600 leading-relaxed"
+                className="max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed"
                 variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
                 transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
               >
@@ -142,7 +143,7 @@ export default function HomePage() {
               </motion.p>
 
               <motion.p
-                className="text-sm sm:text-base text-slate-600"
+                className="max-w-3xl text-sm sm:text-base text-slate-600"
                 variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
               >
                 This site introduces the Flux v0.1 IR, the language surface, and the tooling stack: a core parser/runtime, a CLI, and editor integrations.
@@ -154,17 +155,17 @@ export default function HomePage() {
               >
                 <motion.a
                   href="/docs"
-                  className="inline-flex items-center rounded-full flux-gradient-bg px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-                  whileHover={{ scale: 1.06, rotate: 0.3 }}
-                  whileTap={{ scale: 0.97 }}
+                  className="inline-flex items-center rounded-full flux-gradient-bg px-4 py-2 text-sm font-semibold text-white shadow-sm transition"
+                  whileHover={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,205,254,0.35)" }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   Get started
                 </motion.a>
                 <motion.a
                   href="https://github.com/cbassuarez/flux"
                   className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
-                  whileHover={{ scale: 1.04, translateY: -2 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileHover={{ scale: 1.02, translateY: -1 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   View on GitHub
                 </motion.a>
@@ -172,8 +173,10 @@ export default function HomePage() {
             </motion.div>
           </motion.div>
 
+          <CliInstallWidget />
+
           <motion.div
-            className="hero-code-grid"
+            className="hero-code-grid w-full"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}

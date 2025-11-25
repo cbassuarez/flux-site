@@ -1,5 +1,5 @@
 :root {
-  --flux-accent: #00CDFE;
+  --flux-accent: #00cdfe;
   --flux-accent-green: #7BE94A;
   --flux-accent-gradient: linear-gradient(135deg, var(--flux-accent) 0%, var(--flux-accent-green) 100%);
 }
@@ -27,14 +27,14 @@
 
 .hero-code-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 1.5rem;
   margin-top: 1.5rem;
 }
 
-@media (max-width: 768px) {
+@media (min-width: 768px) {
   .hero-code-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

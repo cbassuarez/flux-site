@@ -27,9 +27,9 @@ export function HeroSection({ children }: HeroSectionProps) {
         />
       </motion.div>
 
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16 lg:py-20">
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 md:py-16 lg:px-10 lg:py-20 xl:px-12">
         <motion.div
-          className="grid items-start gap-10 md:gap-12 lg:grid-cols-2"
+          className="w-full space-y-8"
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
