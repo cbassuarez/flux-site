@@ -7,7 +7,7 @@ import "./styles/branding.css";
 
     ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <React.StrictMode>
-            <div className="app-shell">
+            <div className="app-shell bg-white text-slate-900">
                 <BrowserRouter basename={import.meta.env.BASE_URL}>
                     <App />
                 </BrowserRouter>
