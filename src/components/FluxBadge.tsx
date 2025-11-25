@@ -1,18 +1,50 @@
-import fluxMarkFull from "../assets/branding/flux-mark-full.svg";
-import pkg from "../../package.json";
+import type { ReactNode } from "react";
+import fluxBadgeMark from "../assets/branding/flux-mark-badge.svg";
+import {
+  FLUX_VERSION,
+  FLUX_REPO_PERMALINK,
+} from "../config/fluxMeta";
 
-interface FluxBadgeProps {
+type FluxBadgeProps = {
   className?: string;
-}
+  children?: ReactNode; // kept for future flexibility (not required)
+};
 
 export function FluxBadge({ className }: FluxBadgeProps) {
+  const baseClasses =
+    "inline-flex items-center gap-2 rounded-lg border border-slate-200 " +
+    "bg-white/90 px-3 py-1 text-xs font-medium text-slate-900 " +
+    "shadow-sm transition hover:shadow-md hover:border-sky-200 hover:bg-white";
+
+  const mergedClassName = className
+    ? `${baseClasses} ${className}`
+    : baseClasses;
+
+  const rawVersion = (FLUX_VERSION ?? "").toString();
+  const versionLabel =
+    rawVersion && rawVersion.startsWith("v")
+      ? rawVersion
+      : rawVersion
+        ? `v${rawVersion}`
+        : "v0.0.0-dev";
+
   return (
-    <div
-      className={`inline-flex items-center gap-2 rounded-full border border-transparent bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm flux-gradient-border ${className ?? ""}`.trim()}
+    <a
+      href={FLUX_REPO_PERMALINK}
+      target="_blank"
+      rel="noreferrer"
+      className={mergedClassName}
+      aria-label={`Flux repository (version ${versionLabel})`}
     >
-      <img src={fluxMarkFull} alt="Flux mark" className="h-6 w-6" />
-      <span className="font-semibold text-slate-900">flux language</span>
-      <span className="font-mono text-[11px] text-slate-600">v{pkg.version}</span>
-    </div>
+      <img
+        src={fluxBadgeMark}
+        alt="Flux mark"
+        className="h-4 w-auto"
+      />
+      <span className="uppercase tracking-wide">flux</span>
+      <span className="text-[11px] text-slate-500">
+        {versionLabel}
+      </span>
+    </a>
   );
 }
