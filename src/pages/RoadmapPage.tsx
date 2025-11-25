@@ -1,5 +1,6 @@
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
+import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -8,7 +9,12 @@ const tocItems = [
 
 export default function RoadmapPage() {
   return (
-    <PageLayout title="Roadmap" subtitle="Flux v0.1 focus areas and what comes next." headerSlot={<PageTOC items={tocItems} />}>
+    <PageLayout
+      title="Roadmap"
+      subtitle="Flux v0.1 focus areas and what comes next."
+      eyebrow={<FluxBrandStrip subtitle="roadmap" />}
+      headerSlot={<PageTOC items={tocItems} />}
+    >
       <section id="overview" className="space-y-3 scroll-mt-24">
         <h2 className="text-lg font-semibold text-slate-900">Roadmap</h2>
         <p className="text-sm sm:text-base text-slate-600 leading-relaxed">

@@ -1,5 +1,6 @@
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
+import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -12,6 +13,7 @@ export default function DocsPage() {
     <PageLayout
       title="Docs"
       subtitle="Flux v0.1 IR, language surface, and runtime."
+      eyebrow={<FluxBrandStrip subtitle="docs" />}
       headerSlot={<PageTOC items={tocItems} />}
     >
       <section id="overview" className="space-y-3 scroll-mt-24">

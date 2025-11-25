@@ -1,0 +1,97 @@
+:root {
+  --flux-accent: #00CDFE;
+  --flux-accent-green: #7BE94A;
+  --flux-accent-gradient: linear-gradient(135deg, var(--flux-accent) 0%, var(--flux-accent-green) 100%);
+}
+
+.flux-gradient-text {
+  background: var(--flux-accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.flux-gradient-border {
+  border-image: var(--flux-accent-gradient) 1;
+}
+
+.flux-gradient-bg {
+  background-image: var(--flux-accent-gradient);
+}
+
+.hero-brand-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.hero-code-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .hero-code-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flux-mark-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid transparent;
+  border-image-slice: 1;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  text-transform: lowercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.flux-mark-pill.flux-gradient-border {
+  border-image: var(--flux-accent-gradient) 1;
+}
+
+.flux-mark-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.flux-brand-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+}
+
+.flux-brand-strip-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  text-transform: lowercase;
+}
+
+.flux-brand-strip-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.flux-brand-strip-subtitle {
+  font-size: 0.75rem;
+  color: #475569;
+}

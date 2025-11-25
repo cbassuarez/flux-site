@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { parseDocument } from "@flux-lang/core";
 import { HeroSection } from "../components/HeroSection";
 import { CodePanel } from "../components/CodePanel";
+import { FluxMark } from "../components/branding/FluxMark";
 
 export default function HomePage() {
   const fluxSource = `document {
@@ -97,97 +98,101 @@ export default function HomePage() {
   return (
     <div className="space-y-14 lg:space-y-16">
       <HeroSection>
-        <motion.div
-          className="space-y-6"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: { opacity: 0, y: 18 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
-          }}
-        >
+        <div className="w-full space-y-6">
           <motion.div
             className="space-y-6"
             initial="hidden"
             animate="visible"
             variants={{
-              hidden: { opacity: 0, y: 16 },
-              visible: {
-                opacity: 1,
-                y: 0,
-                transition: { staggerChildren: 0.08, delayChildren: 0.05 },
-              },
+              hidden: { opacity: 0, y: 18 },
+              visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
             }}
           >
-            <motion.h1
-              className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
-              variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
-              transition={{ type: "spring", stiffness: 120, damping: 16 }}
-            >
-              Flux is a score language for
-              <span className="block text-sky-600">procedurally evolving music scores and parts.</span>
-            </motion.h1>
-
-            <motion.p
-              className="max-w-2xl text-sm sm:text-base text-slate-600 leading-relaxed"
-              variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
-              transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
-            >
-              Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time. The core abstraction is a well-defined JSON intermediate representation —
-              <span className="font-mono text-xs sm:text-sm text-slate-800"> FluxDocument</span> — designed to be parsed, inspected, and transformed by tools.
-            </motion.p>
-
-            <motion.p
-              className="text-sm sm:text-base text-slate-600"
-              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-            >
-              This site introduces the Flux v0.1 IR, the language surface, and the tooling stack: a core parser/runtime, a CLI, and editor integrations.
-            </motion.p>
+            <FluxMark variant="pill" className="hero-brand-pill" />
 
             <motion.div
-              className="flex flex-wrap items-center gap-3 pt-1"
-              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+              className="space-y-6"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0, y: 16 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+                },
+              }}
             >
-              <motion.a
-                href="/docs"
-                className="inline-flex items-center rounded-full bg-[#00cdfe] px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-sky-300"
-                whileHover={{ scale: 1.06, rotate: 0.3 }}
-                whileTap={{ scale: 0.97 }}
+              <motion.h1
+                className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900"
+                variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+                transition={{ type: "spring", stiffness: 120, damping: 16 }}
               >
-                Get started
-              </motion.a>
-              <motion.a
-                href="https://github.com/cbassuarez/flux"
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
-                whileHover={{ scale: 1.04, translateY: -2 }}
-                whileTap={{ scale: 0.97 }}
+                Flux is a score language for
+                <span className="block flux-gradient-text">procedurally evolving music scores and parts.</span>
+              </motion.h1>
+
+              <motion.p
+                className="max-w-2xl text-sm sm:text-base text-slate-600 leading-relaxed"
+                variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+                transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
               >
-                View on GitHub
-              </motion.a>
+                Flux treats a musical score as a living system: grids of cells, rules, and runtime behavior that can evolve over time. The core abstraction is a well-defined JSON intermediate representation —
+                <span className="font-mono text-xs sm:text-sm text-slate-800"> FluxDocument</span> — designed to be parsed, inspected, and transformed by tools.
+              </motion.p>
+
+              <motion.p
+                className="text-sm sm:text-base text-slate-600"
+                variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+              >
+                This site introduces the Flux v0.1 IR, the language surface, and the tooling stack: a core parser/runtime, a CLI, and editor integrations.
+              </motion.p>
+
+              <motion.div
+                className="flex flex-wrap items-center gap-3 pt-1"
+                variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+              >
+                <motion.a
+                  href="/docs"
+                  className="inline-flex items-center rounded-full flux-gradient-bg px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                  whileHover={{ scale: 1.06, rotate: 0.3 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  Get started
+                </motion.a>
+                <motion.a
+                  href="https://github.com/cbassuarez/flux"
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
+                  whileHover={{ scale: 1.04, translateY: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  View on GitHub
+                </motion.a>
+              </motion.div>
             </motion.div>
           </motion.div>
-        </motion.div>
 
-        <motion.div
-          className="grid gap-4 lg:grid-cols-2"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
-            <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
-              <code>{fluxSource}</code>
-            </pre>
-          </CodePanel>
+          <motion.div
+            className="hero-code-grid"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <CodePanel title="Flux source" subtitle="v0.1 · document → FluxDocument">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+                <code>{fluxSource}</code>
+              </pre>
+            </CodePanel>
 
-          <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
-            <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
-              <code>
-                {error ? `// Failed to parse example:\n// ${error}` : irJson}
-              </code>
-            </pre>
-          </CodePanel>
-        </motion.div>
+            <CodePanel title="Flux IR" subtitle="FluxDocument · parseDocument(source)">
+              <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed font-mono text-slate-800">
+                <code>
+                  {error ? `// Failed to parse example:\n// ${error}` : irJson}
+                </code>
+              </pre>
+            </CodePanel>
+          </motion.div>
+        </div>
       </HeroSection>
 
       <section className="border-t border-slate-200 bg-white pt-12 pb-6">

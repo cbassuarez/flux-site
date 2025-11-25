@@ -41,7 +41,7 @@ export function Header() {
               className={({ isActive }) =>
                 [
                   "transition-colors",
-                  isActive ? "text-sky-600" : "hover:text-slate-900",
+                  isActive ? "flux-gradient-text font-semibold" : "hover:text-slate-900",
                 ].join(" ")
               }
               end={item.path === "/"}
@@ -107,7 +107,9 @@ export function Header() {
                       className={({ isActive }) =>
                         [
                           "block rounded-lg px-2 py-2.5 transition",
-                          isActive ? "bg-slate-100 text-slate-900" : "hover:bg-slate-50",
+                          isActive
+                            ? "bg-slate-100 flux-gradient-text font-semibold"
+                            : "hover:bg-slate-50",
                         ].join(" ")
                       }
                       end={item.path === "/"}
