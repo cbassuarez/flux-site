@@ -16,8 +16,7 @@ export function CodePanel({
     <motion.article
       className="code-panel flex min-h-[220px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 shadow-sm backdrop-blur"
       initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
     >
       <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
