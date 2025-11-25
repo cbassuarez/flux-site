@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "sync:flux-version": "node ./scripts/sync-flux-version.mjs",
+    "prebuild": "npm run sync:flux-version",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
