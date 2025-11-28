@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Material } from "@flux-lang/core";
+import { looksLikeUrl } from "../materials/linkUtils";
 import { inferMaterialKind, type MaterialKind } from "../model/materials";
 
 interface MaterialsPanelProps {
@@ -10,6 +11,8 @@ interface MaterialsPanelProps {
   onAddMaterial(): void;
   onUpdateMaterial(material: Material): void;
   onDeleteMaterial(name: string): void;
+  canApplyToSelection?: boolean;
+  onApplyToSelection?: (name: string) => void;
 }
 
 const KIND_ORDER: MaterialKind[] = ["audio", "video", "text", "soundfont", "other"];
@@ -22,6 +25,8 @@ export function MaterialsPanel({
   onAddMaterial,
   onUpdateMaterial,
   onDeleteMaterial,
+  canApplyToSelection,
+  onApplyToSelection,
 }: MaterialsPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const selectedMaterial = useMemo(
@@ -94,6 +99,8 @@ export function MaterialsPanel({
             onUpdate={onUpdateMaterial}
             onDelete={onDeleteMaterial}
             boundToSelectedCell={boundToSelectedCell}
+            canApplyToSelection={canApplyToSelection}
+            onApplyToSelection={onApplyToSelection}
           />
         )}
       </div>
@@ -122,11 +129,15 @@ function MaterialDetail({
   onUpdate,
   onDelete,
   boundToSelectedCell,
+  canApplyToSelection,
+  onApplyToSelection,
 }: {
   material: Material;
   onUpdate: (mat: Material) => void;
   onDelete: (name: string) => void;
   boundToSelectedCell?: string | null;
+  canApplyToSelection?: boolean;
+  onApplyToSelection?: (name: string) => void;
 }) {
   const [draft, setDraft] = useState<Material>(() => ({ ...material }));
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -195,13 +206,25 @@ function MaterialDetail({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => onDelete(draft.name)}
-          className="text-[11px] text-red-500 hover:text-red-600"
-        >
-          Delete
-        </button>
+        <div className="flex items-center gap-2">
+          {onApplyToSelection && (
+            <button
+              type="button"
+              onClick={() => onApplyToSelection(draft.name)}
+              disabled={!canApplyToSelection}
+              className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm enabled:hover:bg-slate-800 disabled:opacity-40"
+            >
+              Apply to selection
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(draft.name)}
+            className="text-[11px] text-red-500 hover:text-red-600"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -286,21 +309,12 @@ function MaterialDetail({
               value={draft.audio?.gain}
               onChange={(v) => updateFacet("audio", { ...(draft.audio ?? {}), gain: v })}
             />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (audioRef.current && draft.audio?.clip) {
-                    audioRef.current.src = draft.audio.clip;
-                    audioRef.current.play().catch(() => undefined);
-                  }
-                }}
-                className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
-              >
-                Preview
-              </button>
-              <audio ref={audioRef} className="hidden" controls />
-            </div>
+            <MediaPreview
+              audioClip={draft.audio?.clip}
+              videoClip={undefined}
+              audioRef={audioRef}
+              videoRef={videoRef}
+            />
           </div>
         )}
 
@@ -326,23 +340,12 @@ function MaterialDetail({
               value={draft.video?.layer ?? ""}
               onChange={(v) => updateFacet("video", { ...(draft.video ?? {}), layer: v })}
             />
-            <div className="space-y-2">
-              <div className="aspect-video w-full overflow-hidden rounded bg-black/80">
-                <video ref={videoRef} className="h-full w-full" muted controls />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (videoRef.current && draft.video?.clip) {
-                    videoRef.current.src = draft.video.clip;
-                    videoRef.current.play().catch(() => undefined);
-                  }
-                }}
-                className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
-              >
-                Preview
-              </button>
-            </div>
+            <MediaPreview
+              audioClip={undefined}
+              videoClip={draft.video?.clip}
+              audioRef={audioRef}
+              videoRef={videoRef}
+            />
           </div>
         )}
 
@@ -414,6 +417,57 @@ function MaterialDetail({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MediaPreview({
+  audioClip,
+  videoClip,
+  audioRef,
+  videoRef,
+}: {
+  audioClip?: string;
+  videoClip?: string;
+  audioRef: React.RefObject<HTMLAudioElement>;
+  videoRef: React.RefObject<HTMLVideoElement>;
+}) {
+  const hasAudioUrl = looksLikeUrl(audioClip);
+  const hasVideoUrl = looksLikeUrl(videoClip);
+
+  return (
+    <div className="space-y-2 text-xs text-slate-600">
+      {hasAudioUrl && audioClip && (
+        <div className="space-y-1">
+          <div className="font-semibold text-slate-700">Audio preview</div>
+          <audio ref={audioRef} controls src={audioClip} className="w-full rounded bg-slate-100" />
+          <a href={audioClip} target="_blank" rel="noreferrer" className="text-[11px] text-sky-600 underline">
+            Open audio in new tab
+          </a>
+        </div>
+      )}
+
+      {!hasAudioUrl && audioClip && (
+        <div className="rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[11px] text-slate-700">
+          Clip: {audioClip}
+        </div>
+      )}
+
+      {hasVideoUrl && videoClip && (
+        <div className="space-y-1">
+          <div className="font-semibold text-slate-700">Video preview</div>
+          <video ref={videoRef} controls src={videoClip} className="w-full max-h-40 rounded bg-black" />
+          <a href={videoClip} target="_blank" rel="noreferrer" className="text-[11px] text-sky-600 underline">
+            Open video in new tab
+          </a>
+        </div>
+      )}
+
+      {!hasVideoUrl && videoClip && (
+        <div className="rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[11px] text-slate-700">
+          Clip: {videoClip}
+        </div>
+      )}
     </div>
   );
 }

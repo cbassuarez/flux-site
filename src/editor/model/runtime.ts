@@ -22,6 +22,15 @@ export type Runtime = {
   updateParam?: (name: string, value: number | boolean | string) => void;
 };
 
+export function snapshotFromDoc(doc: FluxDocument): RuntimeSnapshot {
+  const state = initRuntimeState(doc);
+  return {
+    docstep: (state as any).docstepIndex ?? 0,
+    params: { ...(state as any).params },
+    grids: (state as any).grids,
+  } as RuntimeSnapshot;
+}
+
 export function createRuntime(doc: FluxDocument, _options?: { clock?: string }): Runtime {
   let state = initRuntimeState(doc);
 

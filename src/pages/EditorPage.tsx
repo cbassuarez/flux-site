@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { parseDocument } from "@flux-lang/core";
 import type { FluxDocument, Material } from "@flux-lang/core";
 import EditorCanvas from "../editor/components/EditorCanvas";
@@ -6,6 +6,8 @@ import MaterialsPanel from "../editor/components/MaterialsPanel";
 import RuntimeConsole, { buildRuntimeConsoleEntries, type RuntimeConsoleEntry } from "../editor/components/RuntimeConsole";
 import { computeGridLayout, type EditorLayout } from "../editor/model/layoutAdapter";
 import { createRuntime, getDocstepIntervalHint, type Runtime, type RuntimeSnapshot } from "../editor/model/runtime";
+import { downloadTextFile } from "../editor/io/download";
+import { loadFluxFile } from "../editor/io/loadFromFile";
 import { useFluxEditorState } from "../editor/state/useFluxEditorState";
 
 const DEFAULT_SOURCE = `document {
@@ -48,6 +50,11 @@ export default function EditorPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [layout, setLayout] = useState<EditorLayout | null>(null);
   const [runtimeEntries, setRuntimeEntries] = useState<RuntimeConsoleEntry[]>([]);
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastAppliedSource, setLastAppliedSource] = useState(DEFAULT_SOURCE);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const playTimerRef = useRef<number | null>(null);
   const lastDocstepRef = useRef<number | null>(null);
@@ -91,6 +98,14 @@ export default function EditorPage() {
     setIsPlaying(false);
   }
 
+  useEffect(() => {
+    if (editor.state.docSource !== lastAppliedSource) {
+      stopTimer();
+      setRuntime(null);
+      setIsPlaying(false);
+    }
+  }, [editor.state.docSource, lastAppliedSource]);
+
   function syncParamValuesFromDoc(parsed: FluxDocument, snap?: RuntimeSnapshot | null) {
     const next: Record<string, any> = {};
     const existing = paramValues;
@@ -108,11 +123,12 @@ export default function EditorPage() {
     setParamValues(next);
   }
 
-  function handleApply() {
+  function applySource(source: string) {
     stopTimer();
+    editor.setDocSource(source);
 
     try {
-      const parsed = parseDocument(editor.state.docSource);
+      const parsed = parseDocument(source);
       const rt = createRuntime(parsed, { clock: "manual" });
 
       if (typeof (rt as any).updateParam === "function") {
@@ -123,22 +139,99 @@ export default function EditorPage() {
 
       const snap = rt.snapshot();
 
-      editor.setDocument(parsed, snap);
+      editor.setDocument(parsed, snap, { docSource: source, resetSelection: true });
       setRuntime(rt);
       setParseError(null);
       syncParamValuesFromDoc(parsed, snap);
       setStatusMessage(`Parsed OK · docstep ${(snap as any).docstep ?? 0}`);
       setRuntimeEntries([]);
       lastDocstepRef.current = null;
+      setLastAppliedSource(source);
     } catch (error) {
       const msg = (error as Error)?.message ?? String(error);
       setParseError(msg);
       setStatusMessage("Parse error");
-      editor.setDocument(null, null);
+      editor.setDocument(null, null, { docSource: source });
       setRuntime(null);
       setLayout(null);
     }
   }
+
+  function handleApply() {
+    applySource(editor.state.docSource);
+  }
+
+  async function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const source = await loadFluxFile(file);
+      applySource(source);
+    } catch (err) {
+      setParseError((err as Error)?.message ?? String(err));
+      setStatusMessage("Failed to load file");
+    } finally {
+      event.target.value = "";
+      setIsFileMenuOpen(false);
+    }
+  }
+
+  function handleNewDocument() {
+    applySource(DEFAULT_SOURCE);
+    setIsFileMenuOpen(false);
+  }
+
+  function handleOpenFromMenu() {
+    fileInputRef.current?.click();
+  }
+
+  function makeSafeTitle(): string {
+    const title = editor.state.doc?.meta.title ?? "flux-document";
+    return title.trim().replace(/\s+/g, "-").toLowerCase() || "flux-document";
+  }
+
+  function handleSaveAsFlux() {
+    const filename = `${makeSafeTitle()}.flux`;
+    downloadTextFile(filename, editor.state.docSource ?? "");
+    setIsFileMenuOpen(false);
+  }
+
+  function handleExportJson() {
+    try {
+      const doc = parseDocument(editor.state.docSource);
+      const filename = `${makeSafeTitle()}-ir.json`;
+      downloadTextFile(filename, JSON.stringify(doc, null, 2));
+      setStatusMessage("Exported IR JSON");
+    } catch (err) {
+      setParseError((err as Error)?.message ?? String(err));
+      setStatusMessage("Parse error");
+    }
+    setIsFileMenuOpen(false);
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (!file || !file.name.endsWith(".flux")) return;
+    try {
+      const source = await loadFluxFile(file);
+      applySource(source);
+    } catch (err) {
+      setParseError((err as Error)?.message ?? String(err));
+      setStatusMessage("Failed to load file");
+    }
+  };
 
   function handlePlay() {
     if (!runtime || !editor.state.doc) return;
@@ -237,7 +330,27 @@ export default function EditorPage() {
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col border-t border-slate-200 bg-slate-50">
+    <div
+      className={[
+        "flex min-h-[calc(100vh-4rem)] flex-col border-t border-slate-200 bg-slate-50",
+        isDragging ? "ring-2 ring-sky-300 ring-offset-2" : "",
+      ].join(" ")}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <input ref={fileInputRef} type="file" accept=".flux,text/plain" className="hidden" onChange={handleFileInputChange} />
+
+      <EditorMenuBar
+        title={editor.state.doc?.meta.title ?? "Untitled"}
+        isFileMenuOpen={isFileMenuOpen}
+        onToggleFileMenu={setIsFileMenuOpen}
+        onNewDocument={handleNewDocument}
+        onOpen={handleOpenFromMenu}
+        onSaveAs={handleSaveAsFlux}
+        onExportJson={handleExportJson}
+      />
+
       <EditorTopBar
         title={editor.state.doc?.meta.title ?? "Untitled Flux document"}
         status={statusMessage}
@@ -271,6 +384,11 @@ export default function EditorPage() {
               onUpdateMaterial={(mat) => editor.updateMaterial(mat)}
               onDeleteMaterial={(name) => {
                 editor.deleteMaterial(name);
+              }}
+              canApplyToSelection={!!editor.state.selectedCellId}
+              onApplyToSelection={(name) => {
+                editor.applyMaterialToSelection(name);
+                setStatusMessage(`Applied material ${name}`);
               }}
             />
           </div>
@@ -325,6 +443,83 @@ export default function EditorPage() {
         </div>
 
         <EditorSidebarRight doc={editor.state.doc} paramValues={paramValues} onParamChange={handleParamChange} />
+      </div>
+    </div>
+  );
+}
+
+function EditorMenuBar(props: {
+  title: string;
+  isFileMenuOpen: boolean;
+  onToggleFileMenu: (open: boolean) => void;
+  onNewDocument: () => void;
+  onOpen: () => void;
+  onSaveAs: () => void;
+  onExportJson: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-2 backdrop-blur">
+      <div className="flex items-center gap-4">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">flux editor</span>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => props.onToggleFileMenu(!props.isFileMenuOpen)}
+            className="text-xs font-medium text-slate-700 hover:text-slate-900"
+          >
+            File
+          </button>
+          {props.isFileMenuOpen && (
+            <div
+              className="absolute left-0 z-10 mt-2 w-44 rounded-md border border-slate-200 bg-white p-2 text-[11px] shadow-lg"
+              onMouseLeave={() => props.onToggleFileMenu(false)}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  props.onToggleFileMenu(false);
+                  props.onNewDocument();
+                }}
+                className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-slate-700 hover:bg-slate-50"
+              >
+                New document
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  props.onToggleFileMenu(false);
+                  props.onOpen();
+                }}
+                className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-slate-700 hover:bg-slate-50"
+              >
+                Open…
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  props.onToggleFileMenu(false);
+                  props.onSaveAs();
+                }}
+                className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-slate-700 hover:bg-slate-50"
+              >
+                Save as .flux
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  props.onToggleFileMenu(false);
+                  props.onExportJson();
+                }}
+                className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-slate-700 hover:bg-slate-50"
+              >
+                Export IR as JSON
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+        <span className="truncate">{props.title || "Untitled"}</span>
       </div>
     </div>
   );
