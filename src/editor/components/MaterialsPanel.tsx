@@ -1,0 +1,456 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Material } from "@flux-lang/core";
+import { inferMaterialKind, type MaterialKind } from "../model/materials";
+
+interface MaterialsPanelProps {
+  materials: Material[];
+  selectedMaterialName?: string | null;
+  boundToSelectedCell?: string | null;
+  onSelectMaterial(name: string): void;
+  onAddMaterial(): void;
+  onUpdateMaterial(material: Material): void;
+  onDeleteMaterial(name: string): void;
+}
+
+const KIND_ORDER: MaterialKind[] = ["audio", "video", "text", "soundfont", "other"];
+
+export function MaterialsPanel({
+  materials,
+  selectedMaterialName,
+  boundToSelectedCell,
+  onSelectMaterial,
+  onAddMaterial,
+  onUpdateMaterial,
+  onDeleteMaterial,
+}: MaterialsPanelProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const selectedMaterial = useMemo(
+    () => materials.find((m) => m.name === selectedMaterialName) ?? null,
+    [materials, selectedMaterialName],
+  );
+
+  useEffect(() => {
+    if (!listRef.current || !selectedMaterialName) return;
+    const el = listRef.current.querySelector<HTMLButtonElement>(`[data-material-id="${selectedMaterialName}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [selectedMaterialName]);
+
+  return (
+    <div className="flex h-full gap-3">
+      <div className="w-1/3 min-w-[200px] border-r border-slate-200 pr-2">
+        <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <span>Materials</span>
+          <button
+            type="button"
+            onClick={onAddMaterial}
+            className="rounded bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white shadow hover:bg-slate-800"
+          >
+            + Add
+          </button>
+        </div>
+        <div ref={listRef} className="space-y-1 overflow-y-auto pr-1 text-sm">
+          {materials.length === 0 && (
+            <p className="text-xs text-slate-500">No materials yet. Add one to start annotating the score.</p>
+          )}
+          {materials.map((mat) => (
+            <button
+              key={mat.name}
+              data-material-id={mat.name}
+              type="button"
+              onClick={() => onSelectMaterial(mat.name)}
+              className={
+                "flex w-full items-center justify-between rounded px-2 py-2 text-left text-[13px] " +
+                (selectedMaterialName === mat.name
+                  ? "bg-slate-100 ring-1 ring-slate-900/20"
+                  : "hover:bg-slate-50")
+              }
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-3 w-3 rounded-full border border-slate-200"
+                  style={mat.color ? { backgroundColor: mat.color } : undefined}
+                />
+                <div className="flex flex-col">
+                  <span className="font-medium text-slate-800">{mat.label ?? mat.name}</span>
+                  <span className="text-[11px] text-slate-500">{renderKindTag(mat)}</span>
+                </div>
+              </div>
+              <span className="text-[10px] uppercase text-slate-400">{mat.tags?.slice(0, 2).join(", ")}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 pl-2">
+        {!selectedMaterial && (
+          <div className="flex h-full flex-col items-center justify-center rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            Select or create a material.
+          </div>
+        )}
+
+        {selectedMaterial && (
+          <MaterialDetail
+            material={selectedMaterial}
+            onUpdate={onUpdateMaterial}
+            onDelete={onDeleteMaterial}
+            boundToSelectedCell={boundToSelectedCell}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function renderKindTag(material: Material) {
+  const kind = inferMaterialKind(material);
+  switch (kind) {
+    case "audio":
+      return "Audio";
+    case "video":
+      return "Video";
+    case "text":
+      return "Text";
+    case "soundfont":
+      return "Soundfont";
+    default:
+      return "Other";
+  }
+}
+
+function MaterialDetail({
+  material,
+  onUpdate,
+  onDelete,
+  boundToSelectedCell,
+}: {
+  material: Material;
+  onUpdate: (mat: Material) => void;
+  onDelete: (name: string) => void;
+  boundToSelectedCell?: string | null;
+}) {
+  const [draft, setDraft] = useState<Material>(() => ({ ...material }));
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    setDraft({ ...material });
+  }, [material]);
+
+  const kind = inferMaterialKind(draft);
+
+  const handleKindChange = (nextKind: MaterialKind) => {
+    const nextDraft: Material = { ...draft };
+    if (nextKind === "audio") {
+      nextDraft.audio = nextDraft.audio ?? { clip: "" };
+      nextDraft.video = undefined;
+      nextDraft.text = undefined;
+      nextDraft.soundfont = undefined;
+    } else if (nextKind === "video") {
+      nextDraft.video = nextDraft.video ?? { clip: "" };
+      nextDraft.audio = undefined;
+      nextDraft.text = undefined;
+      nextDraft.soundfont = undefined;
+    } else if (nextKind === "text") {
+      nextDraft.text = nextDraft.text ?? { body: "" };
+      nextDraft.audio = undefined;
+      nextDraft.video = undefined;
+      nextDraft.soundfont = undefined;
+    } else if (nextKind === "soundfont") {
+      nextDraft.soundfont = nextDraft.soundfont ?? { name: "" };
+      nextDraft.audio = undefined;
+      nextDraft.video = undefined;
+      nextDraft.text = undefined;
+    } else {
+      nextDraft.audio = undefined;
+      nextDraft.video = undefined;
+      nextDraft.text = undefined;
+      nextDraft.soundfont = undefined;
+    }
+    setDraft(nextDraft);
+    onUpdate(nextDraft);
+  };
+
+  const updateField = (patch: Partial<Material>) => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    onUpdate(next);
+  };
+
+  const updateFacet = <K extends keyof Material>(key: K, value: Material[K]) => {
+    const next = { ...draft, [key]: value } as Material;
+    setDraft(next);
+    onUpdate(next);
+  };
+
+  const previewText = draft.text?.body ?? "";
+
+  return (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <div className="text-sm font-semibold text-slate-800">{draft.label ?? draft.name}</div>
+          {boundToSelectedCell && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
+              Bound to selected cell
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(draft.name)}
+          className="text-[11px] text-red-500 hover:text-red-600"
+        >
+          Delete
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <label className="space-y-1 text-xs text-slate-600">
+          <span className="block font-semibold">Name</span>
+          <input
+            value={draft.name}
+            onChange={(e) => updateField({ name: e.target.value })}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-slate-600">
+          <span className="block font-semibold">Label</span>
+          <input
+            value={draft.label ?? ""}
+            onChange={(e) => updateField({ label: e.target.value })}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-slate-600">
+          <span className="block font-semibold">Tags</span>
+          <input
+            value={(draft.tags || []).join(", ")}
+            onChange={(e) => updateField({ tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            placeholder="comma,separated"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-slate-600">
+          <span className="block font-semibold">Color</span>
+          <input
+            value={draft.color ?? ""}
+            onChange={(e) => updateField({ color: e.target.value })}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            placeholder="#334155"
+          />
+        </label>
+      </div>
+
+      <label className="space-y-1 text-xs text-slate-600">
+        <span className="block font-semibold">Description</span>
+        <textarea
+          value={draft.description ?? ""}
+          onChange={(e) => updateField({ description: e.target.value })}
+          className="h-20 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+        />
+      </label>
+
+      <div>
+        <div className="mb-2 inline-flex rounded-full bg-slate-100 p-0.5 text-[11px] font-semibold text-slate-600">
+          {KIND_ORDER.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => handleKindChange(k)}
+              className={`rounded-full px-3 py-1 ${kind === k ? "bg-white shadow" : "hover:text-slate-800"}`}
+            >
+              {k === "text" ? "Text / Instruction" : k.charAt(0).toUpperCase() + k.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {kind === "audio" && (
+          <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+            <FacetField
+              label="Clip URL"
+              value={draft.audio?.clip ?? ""}
+              onChange={(v) => updateFacet("audio", { ...(draft.audio ?? {}), clip: v })}
+            />
+            <NumberField
+              label="In (seconds)"
+              value={draft.audio?.inSeconds}
+              onChange={(v) => updateFacet("audio", { ...(draft.audio ?? {}), inSeconds: v })}
+            />
+            <NumberField
+              label="Out (seconds)"
+              value={draft.audio?.outSeconds}
+              onChange={(v) => updateFacet("audio", { ...(draft.audio ?? {}), outSeconds: v })}
+            />
+            <NumberField
+              label="Gain"
+              value={draft.audio?.gain}
+              onChange={(v) => updateFacet("audio", { ...(draft.audio ?? {}), gain: v })}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (audioRef.current && draft.audio?.clip) {
+                    audioRef.current.src = draft.audio.clip;
+                    audioRef.current.play().catch(() => undefined);
+                  }
+                }}
+                className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
+              >
+                Preview
+              </button>
+              <audio ref={audioRef} className="hidden" controls />
+            </div>
+          </div>
+        )}
+
+        {kind === "video" && (
+          <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+            <FacetField
+              label="Clip URL"
+              value={draft.video?.clip ?? ""}
+              onChange={(v) => updateFacet("video", { ...(draft.video ?? {}), clip: v })}
+            />
+            <NumberField
+              label="In (seconds)"
+              value={draft.video?.inSeconds}
+              onChange={(v) => updateFacet("video", { ...(draft.video ?? {}), inSeconds: v })}
+            />
+            <NumberField
+              label="Out (seconds)"
+              value={draft.video?.outSeconds}
+              onChange={(v) => updateFacet("video", { ...(draft.video ?? {}), outSeconds: v })}
+            />
+            <FacetField
+              label="Layer"
+              value={draft.video?.layer ?? ""}
+              onChange={(v) => updateFacet("video", { ...(draft.video ?? {}), layer: v })}
+            />
+            <div className="space-y-2">
+              <div className="aspect-video w-full overflow-hidden rounded bg-black/80">
+                <video ref={videoRef} className="h-full w-full" muted controls />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (videoRef.current && draft.video?.clip) {
+                    videoRef.current.src = draft.video.clip;
+                    videoRef.current.play().catch(() => undefined);
+                  }
+                }}
+                className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
+              >
+                Preview
+              </button>
+            </div>
+          </div>
+        )}
+
+        {kind === "text" && (
+          <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+            <label className="space-y-1 text-xs text-slate-600">
+              <span className="block font-semibold">Body</span>
+              <textarea
+                value={draft.text?.body ?? ""}
+                onChange={(e) => updateFacet("text", { ...(draft.text ?? {}), body: e.target.value })}
+                className="h-28 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              />
+            </label>
+            <label className="space-y-1 text-xs text-slate-600">
+              <span className="block font-semibold">Format</span>
+              <select
+                value={draft.text?.format ?? "plain"}
+                onChange={(e) => updateFacet("text", { ...(draft.text ?? {}), format: e.target.value })}
+                className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              >
+                <option value="plain">Plain</option>
+                <option value="markdown">Markdown</option>
+              </select>
+            </label>
+            <div className="rounded border border-slate-200 bg-white p-2 text-sm text-slate-700">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</div>
+              <div className="max-h-40 overflow-auto whitespace-pre-wrap text-sm">
+                {draft.text?.format === "markdown" ? (
+                  <span className="text-slate-600">{previewText || "(markdown preview)"}</span>
+                ) : (
+                  <span>{previewText || "(plain text)"}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {kind === "soundfont" && (
+          <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+            <FacetField
+              label="Instrument name"
+              value={draft.soundfont?.name ?? ""}
+              onChange={(v) => updateFacet("soundfont", { ...(draft.soundfont ?? {}), name: v })}
+            />
+            <NumberField
+              label="Bank"
+              value={draft.soundfont?.bank}
+              onChange={(v) => updateFacet("soundfont", { ...(draft.soundfont ?? {}), bank: v })}
+            />
+            <NumberField
+              label="Program"
+              value={draft.soundfont?.program}
+              onChange={(v) => updateFacet("soundfont", { ...(draft.soundfont ?? {}), program: v })}
+            />
+            <FacetField
+              label="Source (SF2/SFZ URL)"
+              value={draft.soundfont?.source ?? ""}
+              onChange={(v) => updateFacet("soundfont", { ...(draft.soundfont ?? {}), source: v })}
+            />
+            <div className="rounded border border-dashed border-slate-300 bg-white px-3 py-2 text-[12px] text-slate-600">
+              Playback not yet wired; used for instrumentation metadata.
+            </div>
+          </div>
+        )}
+
+        {kind === "other" && (
+          <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            No primary facet yet. Add audio, video, text, or soundfont metadata to get started.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FacetField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="space-y-1 text-xs text-slate-600">
+      <span className="block font-semibold">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+      />
+    </label>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value?: number;
+  onChange: (value: number | undefined) => void;
+}) {
+  return (
+    <label className="space-y-1 text-xs text-slate-600">
+      <span className="block font-semibold">{label}</span>
+      <input
+        type="number"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+      />
+    </label>
+  );
+}
+
+export default MaterialsPanel;
