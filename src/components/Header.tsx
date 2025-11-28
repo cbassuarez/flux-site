@@ -6,6 +6,7 @@ import { FluxMarkLogo } from "./FluxMarkLogo";
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
   { path: "/docs", label: "Docs" },
+  { path: "/editor", label: "Editor" },
   { path: "/tooling", label: "Tooling" },
   { path: "/roadmap", label: "Roadmap" },
 ];
