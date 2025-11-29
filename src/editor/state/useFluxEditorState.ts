@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import { parseDocument } from "@flux-lang/core";
 import type { FluxDocument, Material } from "@flux-lang/core";
 import { ensureMaterialsBlock, getMaterialsFromDoc } from "../model/materials";
 import type { RuntimeSnapshot } from "../model/runtime";
@@ -14,6 +13,7 @@ export interface FluxEditorState {
   selectedCellId: string | null;
   selectedMaterialName: string | null;
   materials: Material[];
+  isDirty: boolean;
 }
 
 export function useFluxEditorState(initialSource: string) {
@@ -24,14 +24,19 @@ export function useFluxEditorState(initialSource: string) {
     selectedCellId: null,
     selectedMaterialName: null,
     materials: [],
+    isDirty: false,
   });
 
   const setDocSource = useCallback((next: string) => {
-    setState((prev) => ({ ...prev, docSource: next }));
+    setState((prev) => ({ ...prev, docSource: next, isDirty: true }));
   }, []);
 
   const setDocument = useCallback(
-    (doc: FluxDocument | null, snapshot: RuntimeSnapshot | null, options?: { docSource?: string; resetSelection?: boolean }) => {
+    (
+      doc: FluxDocument | null,
+      snapshot: RuntimeSnapshot | null,
+      options?: { docSource?: string; resetSelection?: boolean; isDirty?: boolean },
+    ) => {
       setState((prev) => ({
         ...prev,
         doc,
@@ -40,6 +45,7 @@ export function useFluxEditorState(initialSource: string) {
         selectedCellId: options?.resetSelection ? null : prev.selectedCellId,
         selectedMaterialName: options?.resetSelection ? null : prev.selectedMaterialName,
         docSource: options?.docSource ?? prev.docSource,
+        isDirty: options?.isDirty ?? prev.isDirty,
       }));
     },
     [],
@@ -71,9 +77,21 @@ export function useFluxEditorState(initialSource: string) {
       const nextMaterials = prev.materials.some((m) => m.name === updated.name)
         ? prev.materials.map((m) => (m.name === updated.name ? updated : m))
         : [...prev.materials, updated];
+
       if (materialsBlock) {
         materialsBlock.materials = nextMaterials;
       }
+
+      if (nextDoc) {
+        for (const grid of nextDoc.grids) {
+          grid.cells = grid.cells.map((cell) =>
+            cell.mediaId === updated.name
+              ? { ...cell, content: updated.label ?? updated.name, mediaId: updated.name }
+              : cell,
+          );
+        }
+      }
+
       const nextSource = nextDoc ? prettyPrintFluxDocument(nextDoc) : prev.docSource;
       return {
         ...prev,
@@ -81,6 +99,7 @@ export function useFluxEditorState(initialSource: string) {
         materials: nextMaterials,
         docSource: nextSource,
         snapshot: nextDoc ? snapshotFromDoc(nextDoc) : prev.snapshot,
+        isDirty: true,
       };
     });
   }, []);
@@ -107,6 +126,7 @@ export function useFluxEditorState(initialSource: string) {
         materials: nextMaterials,
         docSource: nextSource,
         snapshot: nextDoc ? snapshotFromDoc(nextDoc) : prev.snapshot,
+        isDirty: true,
       };
     });
   }, []);
@@ -135,6 +155,7 @@ export function useFluxEditorState(initialSource: string) {
         selectedMaterialName,
         docSource: nextSource,
         snapshot: nextDoc ? snapshotFromDoc(nextDoc) : prev.snapshot,
+        isDirty: true,
       };
     });
   }, []);
@@ -167,6 +188,7 @@ export function useFluxEditorState(initialSource: string) {
         selectedMaterialName,
         docSource: nextSource,
         snapshot: snapshotFromDoc(nextDoc),
+        isDirty: true,
       };
     });
   }, []);
@@ -174,12 +196,8 @@ export function useFluxEditorState(initialSource: string) {
   const applyMaterialToSelection = useCallback((materialName: string) => {
     setState((prev) => {
       if (!materialName || !prev.selectedCellId) return prev;
-      let doc: FluxDocument;
-      try {
-        doc = parseDocument(prev.docSource);
-      } catch {
-        return prev;
-      }
+      const doc = prev.doc ? { ...prev.doc, grids: prev.doc.grids.map((g) => ({ ...g, cells: [...g.cells] })) } : null;
+      if (!doc) return prev;
 
       const material = (doc.materials?.materials ?? prev.materials).find((m) => m.name === materialName);
       if (!material) return prev;
@@ -188,12 +206,15 @@ export function useFluxEditorState(initialSource: string) {
       let updated = false;
 
       for (const grid of doc.grids) {
-        for (const cell of grid.cells) {
+        grid.cells = grid.cells.map((cell) => {
           if (cell.id === prev.selectedCellId) {
-            applyPresetToCell(cell, patch);
+            const nextCell = { ...cell } as any;
+            applyPresetToCell(nextCell, patch);
             updated = true;
+            return nextCell;
           }
-        }
+          return cell;
+        });
       }
 
       if (!updated) return prev;
@@ -203,15 +224,14 @@ export function useFluxEditorState(initialSource: string) {
       }
 
       const nextSource = prettyPrintFluxDocument(doc);
-      const nextSnapshot = snapshotFromDoc(doc);
 
       return {
         ...prev,
         doc,
         materials: getMaterialsFromDoc(doc),
         docSource: nextSource,
-        snapshot: nextSnapshot,
         selectedMaterialName: materialName,
+        isDirty: true,
       };
     });
   }, []);

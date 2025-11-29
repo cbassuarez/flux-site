@@ -152,22 +152,22 @@ function MaterialDetail({
   const handleKindChange = (nextKind: MaterialKind) => {
     const nextDraft: Material = { ...draft };
     if (nextKind === "audio") {
-      nextDraft.audio = nextDraft.audio ?? { clip: "" };
+      nextDraft.audio = nextDraft.audio ?? { clip: "" } as any;
       nextDraft.video = undefined;
       nextDraft.text = undefined;
       nextDraft.soundfont = undefined;
     } else if (nextKind === "video") {
-      nextDraft.video = nextDraft.video ?? { clip: "" };
+      nextDraft.video = nextDraft.video ?? { clip: "" } as any;
       nextDraft.audio = undefined;
       nextDraft.text = undefined;
       nextDraft.soundfont = undefined;
     } else if (nextKind === "text") {
-      nextDraft.text = nextDraft.text ?? { body: "" };
+      nextDraft.text = nextDraft.text ?? { body: "" } as any;
       nextDraft.audio = undefined;
       nextDraft.video = undefined;
       nextDraft.soundfont = undefined;
     } else if (nextKind === "soundfont") {
-      nextDraft.soundfont = nextDraft.soundfont ?? { name: "" };
+      nextDraft.soundfont = nextDraft.soundfont ?? { name: "" } as any;
       nextDraft.audio = undefined;
       nextDraft.video = undefined;
       nextDraft.text = undefined;
@@ -178,19 +178,21 @@ function MaterialDetail({
       nextDraft.soundfont = undefined;
     }
     setDraft(nextDraft);
-    onUpdate(nextDraft);
   };
 
   const updateField = (patch: Partial<Material>) => {
     const next = { ...draft, ...patch };
     setDraft(next);
-    onUpdate(next);
   };
 
   const updateFacet = <K extends keyof Material>(key: K, value: Material[K]) => {
     const next = { ...draft, [key]: value } as Material;
     setDraft(next);
-    onUpdate(next);
+  };
+
+  const handleSave = () => {
+    if (!draft.name.trim()) return;
+    onUpdate({ ...draft, name: draft.name.trim() });
   };
 
   const previewText = draft.text?.body ?? "";
@@ -223,6 +225,13 @@ function MaterialDetail({
             className="text-[11px] text-red-500 hover:text-red-600"
           >
             Delete
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm hover:bg-slate-800"
+          >
+            Save material
           </button>
         </div>
       </div>

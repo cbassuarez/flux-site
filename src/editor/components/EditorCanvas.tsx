@@ -46,10 +46,16 @@ export function EditorCanvas({ doc, layout, selectedCellId, onSelectCell }: Edit
                         key={cell.id}
                         onClick={() => onSelectCell?.(cell.id, cell.materialRef ?? null)}
                         className={[
-                          "flex aspect-square flex-col items-start justify-between rounded bg-white px-2 py-2 text-[11px] text-slate-700 cursor-pointer",
+                          "relative flex aspect-square flex-col items-start justify-between rounded bg-white px-2 py-2 text-[11px] text-slate-700 cursor-pointer",
                           cell.id === selectedCellId ? "ring-2 ring-slate-900" : "",
                         ].join(" ")}
                       >
+                        {cell.materialRef && (
+                          <div
+                            className="absolute right-0 top-0 h-2 w-2 rounded-bl-[4px]"
+                            style={{ backgroundColor: cell.materialColor ?? "#00cdfe" }}
+                          />
+                        )}
                         <div className="flex w-full items-start justify-between gap-2">
                           <span className="truncate font-medium">{cell.content || "·"}</span>
                           <span className="text-[10px] text-slate-400">{cell.dynamic?.toFixed?.(2)}</span>

@@ -43,13 +43,19 @@ export function applyPresetToCell(cell: FluxCell, patch: CellPresetPatch): void 
     cell.tags = Array.from(existing);
   }
   if (patch.dynamic !== undefined) {
-    cell.dynamic = patch.dynamic;
+    if (cell.dynamic === undefined || cell.dynamic === null) {
+      cell.dynamic = patch.dynamic;
+    }
   }
   if (patch.density !== undefined) {
-    (cell as any).density = patch.density;
+    if ((cell as any).density === undefined || (cell as any).density === null) {
+      (cell as any).density = patch.density;
+    }
   }
   if (patch.salience !== undefined) {
-    (cell as any).salience = patch.salience;
+    if ((cell as any).salience === undefined || (cell as any).salience === null) {
+      (cell as any).salience = patch.salience;
+    }
   }
   if (patch.mediaId !== undefined) {
     (cell as any).mediaId = patch.mediaId;
