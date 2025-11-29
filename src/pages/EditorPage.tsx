@@ -139,7 +139,7 @@ export default function EditorPage() {
 
       const snap = rt.snapshot();
 
-      editor.setDocument(parsed, snap, { docSource: source, resetSelection: true });
+      editor.setDocument(parsed, snap, { docSource: source, resetSelection: true, isDirty: false });
       setRuntime(rt);
       setParseError(null);
       syncParamValuesFromDoc(parsed, snap);
@@ -158,6 +158,10 @@ export default function EditorPage() {
   }
 
   function handleApply() {
+    if (!editor.state.isDirty) {
+      setStatusMessage("No changes to apply");
+      return;
+    }
     applySource(editor.state.docSource);
   }
 
@@ -361,6 +365,7 @@ export default function EditorPage() {
         onReset={handleReset}
         isPlaying={isPlaying}
         hasRuntime={!!runtime}
+        isDirty={editor.state.isDirty}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -535,6 +540,7 @@ function EditorTopBar(props: {
   onReset: () => void;
   isPlaying: boolean;
   hasRuntime: boolean;
+  isDirty?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-2 text-sm backdrop-blur">
@@ -566,7 +572,7 @@ function EditorTopBar(props: {
           <button
             type="button"
             onClick={props.onStep}
-            disabled={!props.hasRuntime}
+            disabled={!props.hasRuntime || props.isPlaying}
             className="px-2 py-0.5 text-[11px] text-slate-700 enabled:hover:text-slate-900 disabled:opacity-40"
           >
             Step
@@ -584,7 +590,8 @@ function EditorTopBar(props: {
         <button
           type="button"
           onClick={props.onApply}
-          className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-white shadow-sm hover:bg-slate-800"
+          disabled={!props.isDirty}
+          className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-white shadow-sm hover:bg-slate-800 disabled:opacity-40"
         >
           Apply
         </button>
