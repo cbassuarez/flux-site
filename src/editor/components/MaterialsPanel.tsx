@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import type { Material } from "@flux-lang/core";
 import { looksLikeUrl } from "../materials/linkUtils";
 import { inferMaterialKind, type MaterialKind } from "../model/materials";
@@ -6,13 +6,15 @@ import { inferMaterialKind, type MaterialKind } from "../model/materials";
 interface MaterialsPanelProps {
   materials: Material[];
   selectedMaterialName?: string | null;
+  materialDraft: Material | null;
   boundToSelectedCell?: string | null;
   onSelectMaterial(name: string): void;
   onAddMaterial(): void;
-  onUpdateMaterial(material: Material): void;
+  onChangeDraft(updater: (draft: Material | null) => Material | null): void;
+  onSaveDraft(): void;
   onDeleteMaterial(name: string): void;
   canApplyToSelection?: boolean;
-  onApplyToSelection?: (name: string) => void;
+  onApplyToSelection?: () => void;
 }
 
 const KIND_ORDER: MaterialKind[] = ["audio", "video", "text", "soundfont", "other"];
@@ -20,20 +22,17 @@ const KIND_ORDER: MaterialKind[] = ["audio", "video", "text", "soundfont", "othe
 export function MaterialsPanel({
   materials,
   selectedMaterialName,
+  materialDraft,
   boundToSelectedCell,
   onSelectMaterial,
   onAddMaterial,
-  onUpdateMaterial,
+  onChangeDraft,
+  onSaveDraft,
   onDeleteMaterial,
   canApplyToSelection,
   onApplyToSelection,
 }: MaterialsPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
-  const selectedMaterial = useMemo(
-    () => materials.find((m) => m.name === selectedMaterialName) ?? null,
-    [materials, selectedMaterialName],
-  );
-
   useEffect(() => {
     if (!listRef.current || !selectedMaterialName) return;
     const el = listRef.current.querySelector<HTMLButtonElement>(`[data-material-id="${selectedMaterialName}"]`);
@@ -87,20 +86,22 @@ export function MaterialsPanel({
       </div>
 
       <div className="flex-1 pl-2">
-        {!selectedMaterial && (
+        {!materialDraft && (
           <div className="flex h-full flex-col items-center justify-center rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
             Select or create a material.
           </div>
         )}
 
-        {selectedMaterial && (
+        {materialDraft && (
           <MaterialDetail
-            material={selectedMaterial}
-            onUpdate={onUpdateMaterial}
+            draft={materialDraft}
+            onChangeDraft={onChangeDraft}
+            onSaveDraft={onSaveDraft}
             onDelete={onDeleteMaterial}
             boundToSelectedCell={boundToSelectedCell}
             canApplyToSelection={canApplyToSelection}
             onApplyToSelection={onApplyToSelection}
+            isSaved={materials.some((m) => m.name === materialDraft.name)}
           />
         )}
       </div>
@@ -125,74 +126,74 @@ function renderKindTag(material: Material) {
 }
 
 function MaterialDetail({
-  material,
-  onUpdate,
+  draft,
+  onChangeDraft,
+  onSaveDraft,
   onDelete,
   boundToSelectedCell,
   canApplyToSelection,
   onApplyToSelection,
+  isSaved,
 }: {
-  material: Material;
-  onUpdate: (mat: Material) => void;
+  draft: Material;
+  onChangeDraft: (updater: (draft: Material | null) => Material | null) => void;
+  onSaveDraft: () => void;
   onDelete: (name: string) => void;
   boundToSelectedCell?: string | null;
   canApplyToSelection?: boolean;
-  onApplyToSelection?: (name: string) => void;
+  onApplyToSelection?: () => void;
+  isSaved: boolean;
 }) {
-  const [draft, setDraft] = useState<Material>(() => ({ ...material }));
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    setDraft({ ...material });
-  }, [material]);
 
   const kind = inferMaterialKind(draft);
 
   const handleKindChange = (nextKind: MaterialKind) => {
-    const nextDraft: Material = { ...draft };
-    if (nextKind === "audio") {
-      nextDraft.audio = nextDraft.audio ?? { clip: "" } as any;
-      nextDraft.video = undefined;
-      nextDraft.text = undefined;
-      nextDraft.soundfont = undefined;
-    } else if (nextKind === "video") {
-      nextDraft.video = nextDraft.video ?? { clip: "" } as any;
-      nextDraft.audio = undefined;
-      nextDraft.text = undefined;
-      nextDraft.soundfont = undefined;
-    } else if (nextKind === "text") {
-      nextDraft.text = nextDraft.text ?? { body: "" } as any;
-      nextDraft.audio = undefined;
-      nextDraft.video = undefined;
-      nextDraft.soundfont = undefined;
-    } else if (nextKind === "soundfont") {
-      nextDraft.soundfont = nextDraft.soundfont ?? { name: "" } as any;
-      nextDraft.audio = undefined;
-      nextDraft.video = undefined;
-      nextDraft.text = undefined;
-    } else {
-      nextDraft.audio = undefined;
-      nextDraft.video = undefined;
-      nextDraft.text = undefined;
-      nextDraft.soundfont = undefined;
-    }
-    setDraft(nextDraft);
+    onChangeDraft((current) => {
+      if (!current) return current;
+      const nextDraft: Material = { ...current };
+      if (nextKind === "audio") {
+        nextDraft.audio = nextDraft.audio ?? ({ clip: "" } as any);
+        nextDraft.video = undefined;
+        nextDraft.text = undefined;
+        nextDraft.soundfont = undefined;
+      } else if (nextKind === "video") {
+        nextDraft.video = nextDraft.video ?? ({ clip: "" } as any);
+        nextDraft.audio = undefined;
+        nextDraft.text = undefined;
+        nextDraft.soundfont = undefined;
+      } else if (nextKind === "text") {
+        nextDraft.text = nextDraft.text ?? ({ body: "" } as any);
+        nextDraft.audio = undefined;
+        nextDraft.video = undefined;
+        nextDraft.soundfont = undefined;
+      } else if (nextKind === "soundfont") {
+        nextDraft.soundfont = nextDraft.soundfont ?? ({ name: "" } as any);
+        nextDraft.audio = undefined;
+        nextDraft.video = undefined;
+        nextDraft.text = undefined;
+      } else {
+        nextDraft.audio = undefined;
+        nextDraft.video = undefined;
+        nextDraft.text = undefined;
+        nextDraft.soundfont = undefined;
+      }
+      return nextDraft;
+    });
   };
 
   const updateField = (patch: Partial<Material>) => {
-    const next = { ...draft, ...patch };
-    setDraft(next);
+    onChangeDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
   const updateFacet = <K extends keyof Material>(key: K, value: Material[K]) => {
-    const next = { ...draft, [key]: value } as Material;
-    setDraft(next);
+    onChangeDraft((current) => (current ? ({ ...current, [key]: value } as Material) : current));
   };
 
   const handleSave = () => {
     if (!draft.name.trim()) return;
-    onUpdate({ ...draft, name: draft.name.trim() });
+    onSaveDraft();
   };
 
   const previewText = draft.text?.body ?? "";
@@ -212,8 +213,8 @@ function MaterialDetail({
           {onApplyToSelection && (
             <button
               type="button"
-              onClick={() => onApplyToSelection(draft.name)}
-              disabled={!canApplyToSelection}
+              onClick={() => onApplyToSelection()}
+              disabled={!canApplyToSelection || !isSaved}
               className="rounded bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm enabled:hover:bg-slate-800 disabled:opacity-40"
             >
               Apply to selection
@@ -222,7 +223,8 @@ function MaterialDetail({
           <button
             type="button"
             onClick={() => onDelete(draft.name)}
-            className="text-[11px] text-red-500 hover:text-red-600"
+            disabled={!isSaved}
+            className="text-[11px] text-red-500 hover:text-red-600 disabled:opacity-40"
           >
             Delete
           </button>

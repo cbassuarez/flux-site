@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { parseDocument } from "@flux-lang/core";
-import type { FluxDocument, Material } from "@flux-lang/core";
+import type { FluxDocument } from "@flux-lang/core";
 import EditorCanvas from "../editor/components/EditorCanvas";
 import MaterialsPanel from "../editor/components/MaterialsPanel";
 import RuntimeConsole, { buildRuntimeConsoleEntries, type RuntimeConsoleEntry } from "../editor/components/RuntimeConsole";
@@ -377,23 +377,23 @@ export default function EditorPage() {
             <MaterialsPanel
               materials={editor.state.materials}
               selectedMaterialName={editor.state.selectedMaterialName}
+              materialDraft={editor.state.materialDraft}
               boundToSelectedCell={selectedCellMaterial?.name === editor.state.selectedMaterialName ? editor.state.selectedCellId : null}
               onSelectMaterial={(name) => editor.setSelectedMaterialName(name)}
               onAddMaterial={() => {
-                const idx = editor.state.materials.length + 1;
-                const name = `material${idx}`;
-                const next: Material = { name, label: `Material ${idx}`, tags: [], text: { body: "" } };
-                editor.addMaterial(next);
-                editor.setSelectedMaterialName(name);
+                editor.startNewMaterialDraft();
               }}
-              onUpdateMaterial={(mat) => editor.updateMaterial(mat)}
+              onChangeDraft={editor.setMaterialDraft}
+              onSaveDraft={() => editor.saveMaterialDraft()}
               onDeleteMaterial={(name) => {
                 editor.deleteMaterial(name);
               }}
               canApplyToSelection={!!editor.state.selectedCellId}
-              onApplyToSelection={(name) => {
-                editor.applyMaterialToSelection(name);
-                setStatusMessage(`Applied material ${name}`);
+              onApplyToSelection={() => {
+                editor.applyMaterialToSelection();
+                if (editor.state.selectedMaterialName) {
+                  setStatusMessage(`Applied material ${editor.state.selectedMaterialName}`);
+                }
               }}
             />
           </div>
@@ -435,6 +435,7 @@ export default function EditorPage() {
               doc={editor.state.doc}
               layout={layout}
               selectedCellId={editor.state.selectedCellId}
+              materials={editor.state.materials}
               onSelectCell={(cellId, materialRef) => {
                 editor.setSelectedCellId(cellId);
                 if (materialRef) {

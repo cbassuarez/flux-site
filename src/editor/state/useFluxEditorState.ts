@@ -3,7 +3,6 @@ import type { FluxDocument, Material } from "@flux-lang/core";
 import { ensureMaterialsBlock, getMaterialsFromDoc } from "../model/materials";
 import type { RuntimeSnapshot } from "../model/runtime";
 import { snapshotFromDoc } from "../model/runtime";
-import { applyPresetToCell, materialToCellPreset } from "../materials/materialPresets";
 import { prettyPrintFluxDocument } from "../serialize/prettyPrintFlux";
 
 export interface FluxEditorState {
@@ -13,6 +12,7 @@ export interface FluxEditorState {
   selectedCellId: string | null;
   selectedMaterialName: string | null;
   materials: Material[];
+  materialDraft: Material | null;
   isDirty: boolean;
 }
 
@@ -24,6 +24,7 @@ export function useFluxEditorState(initialSource: string) {
     selectedCellId: null,
     selectedMaterialName: null,
     materials: [],
+    materialDraft: null,
     isDirty: false,
   });
 
@@ -44,6 +45,15 @@ export function useFluxEditorState(initialSource: string) {
         materials: getMaterialsFromDoc(doc),
         selectedCellId: options?.resetSelection ? null : prev.selectedCellId,
         selectedMaterialName: options?.resetSelection ? null : prev.selectedMaterialName,
+        materialDraft: options?.resetSelection
+          ? null
+          : (() => {
+              const selected = prev.selectedMaterialName;
+              if (!selected) return prev.materialDraft;
+              const nextMaterials = getMaterialsFromDoc(doc);
+              const match = nextMaterials.find((m) => m.name === selected);
+              return match ? { ...match } : null;
+            })(),
         docSource: options?.docSource ?? prev.docSource,
         isDirty: options?.isDirty ?? prev.isDirty,
       }));
@@ -60,76 +70,109 @@ export function useFluxEditorState(initialSource: string) {
   }, []);
 
   const setSelectedMaterialName = useCallback((name: string | null) => {
-    setState((prev) => ({ ...prev, selectedMaterialName: name }));
-  }, []);
-
-  const updateMaterial = useCallback((updated: Material) => {
     setState((prev) => {
-      const nextDoc = prev.doc
-        ? {
-            ...prev.doc,
-            materials: prev.doc.materials
-              ? { materials: [...prev.doc.materials.materials] }
-              : { materials: [] },
-          }
-        : null;
-      const materialsBlock = nextDoc ? ensureMaterialsBlock(nextDoc) : null;
-      const nextMaterials = prev.materials.some((m) => m.name === updated.name)
-        ? prev.materials.map((m) => (m.name === updated.name ? updated : m))
-        : [...prev.materials, updated];
-
-      if (materialsBlock) {
-        materialsBlock.materials = nextMaterials;
-      }
-
-      if (nextDoc) {
-        for (const grid of nextDoc.grids) {
-          grid.cells = grid.cells.map((cell) =>
-            cell.mediaId === updated.name
-              ? { ...cell, content: updated.label ?? updated.name, mediaId: updated.name }
-              : cell,
-          );
-        }
-      }
-
-      const nextSource = nextDoc ? prettyPrintFluxDocument(nextDoc) : prev.docSource;
+      const match = name ? prev.materials.find((m) => m.name === name) : null;
       return {
         ...prev,
-        doc: nextDoc,
-        materials: nextMaterials,
-        docSource: nextSource,
-        snapshot: nextDoc ? snapshotFromDoc(nextDoc) : prev.snapshot,
-        isDirty: true,
+        selectedMaterialName: name,
+        materialDraft: match ? { ...match } : null,
       };
     });
   }, []);
 
-  const addMaterial = useCallback((newMat: Material) => {
-    setState((prev) => {
-      const nextDoc = prev.doc
-        ? {
-            ...prev.doc,
-            materials: prev.doc.materials
-              ? { materials: [...prev.doc.materials.materials] }
-              : { materials: [] },
-          }
-        : null;
-      const materialsBlock = nextDoc ? ensureMaterialsBlock(nextDoc) : null;
-      const nextMaterials = [...prev.materials, newMat];
-      if (materialsBlock) {
-        materialsBlock.materials = nextMaterials;
-      }
-      const nextSource = nextDoc ? prettyPrintFluxDocument(nextDoc) : prev.docSource;
+  const commitMaterialDraft = useCallback(
+    (prev: FluxEditorState, draft: Material, oldName?: string): FluxEditorState => {
+      if (!prev.doc) return prev;
+
+      const trimmedName = draft.name.trim();
+      if (!trimmedName) return prev;
+
+      const previousName = oldName ?? draft.name;
+      const nextDoc: FluxDocument = {
+        ...prev.doc,
+        grids: prev.doc.grids.map((grid) => ({
+          ...grid,
+          cells: grid.cells.map((cell) => {
+            if (cell.mediaId === previousName || cell.mediaId === trimmedName) {
+              return {
+                ...cell,
+                mediaId: trimmedName,
+                content: draft.label ?? trimmedName,
+              };
+            }
+            return cell;
+          }),
+        })),
+        materials: prev.doc.materials
+          ? { materials: [...prev.doc.materials.materials] }
+          : { materials: [...prev.materials] },
+      };
+
+      const materialsBlock = ensureMaterialsBlock(nextDoc);
+      const filtered = materialsBlock.materials.filter(
+        (m) => m.name !== previousName && m.name !== trimmedName,
+      );
+      materialsBlock.materials = [...filtered, { ...draft, name: trimmedName }];
+
+      const nextSource = prettyPrintFluxDocument(nextDoc);
+      const nextMaterials = getMaterialsFromDoc(nextDoc);
+
       return {
         ...prev,
         doc: nextDoc,
         materials: nextMaterials,
+        materialDraft: { ...draft, name: trimmedName },
+        selectedMaterialName: trimmedName,
         docSource: nextSource,
-        snapshot: nextDoc ? snapshotFromDoc(nextDoc) : prev.snapshot,
+        snapshot: snapshotFromDoc(nextDoc),
         isDirty: true,
+      };
+    },
+    [],
+  );
+
+  const setMaterialDraft = useCallback(
+    (updater: (draft: Material | null) => Material | null) => {
+      setState((prev) => ({
+        ...prev,
+        materialDraft: updater(prev.materialDraft),
+      }));
+    },
+    [],
+  );
+
+  const startNewMaterialDraft = useCallback(() => {
+    setState((prev) => {
+      const existingNames = new Set(prev.materials.map((m) => m.name));
+      let counter = prev.materials.length + 1;
+      let name = `material${counter}`;
+      while (existingNames.has(name)) {
+        counter += 1;
+        name = `material${counter}`;
+      }
+
+      const draft: Material = {
+        name,
+        label: `Material ${counter}`,
+        tags: [],
+        color: "#00cdfe",
+        text: { body: "" } as any,
+      };
+
+      return {
+        ...prev,
+        selectedMaterialName: name,
+        materialDraft: draft,
       };
     });
   }, []);
+
+  const saveMaterialDraft = useCallback(() => {
+    setState((prev) => {
+      if (!prev.materialDraft) return prev;
+      return commitMaterialDraft(prev, prev.materialDraft, prev.selectedMaterialName ?? undefined);
+    });
+  }, [commitMaterialDraft]);
 
   const deleteMaterial = useCallback((name: string) => {
     setState((prev) => {
@@ -153,6 +196,7 @@ export function useFluxEditorState(initialSource: string) {
         doc: nextDoc,
         materials: nextMaterials,
         selectedMaterialName,
+        materialDraft: selectedMaterialName ? prev.materialDraft : null,
         docSource: nextSource,
         snapshot: nextDoc ? snapshotFromDoc(nextDoc) : prev.snapshot,
         isDirty: true,
@@ -163,6 +207,8 @@ export function useFluxEditorState(initialSource: string) {
   const updateCellMaterial = useCallback((cellId: string, materialName: string | null) => {
     setState((prev) => {
       if (!prev.doc) return prev;
+      const material = materialName ? prev.materials.find((m) => m.name === materialName) : null;
+
       const nextDoc: FluxDocument = {
         ...prev.doc,
         grids: prev.doc.grids.map((grid) => ({
@@ -172,20 +218,27 @@ export function useFluxEditorState(initialSource: string) {
               ? {
                   ...cell,
                   mediaId: materialName ?? undefined,
+                  content: material ? material.label ?? material.name : cell.content,
                 }
               : cell,
           ),
         })),
         materials: prev.doc.materials
           ? { materials: [...prev.doc.materials.materials] }
-          : prev.doc.materials,
+          : { materials: [...prev.materials] },
       };
+
+      if (nextDoc.materials) {
+        ensureMaterialsBlock(nextDoc).materials = [...prev.materials];
+      }
+
       const selectedMaterialName = materialName ?? prev.selectedMaterialName;
       const nextSource = prettyPrintFluxDocument(nextDoc);
       return {
         ...prev,
         doc: nextDoc,
         selectedMaterialName,
+        materialDraft: material ? { ...material } : prev.materialDraft,
         docSource: nextSource,
         snapshot: snapshotFromDoc(nextDoc),
         isDirty: true,
@@ -193,44 +246,42 @@ export function useFluxEditorState(initialSource: string) {
     });
   }, []);
 
-  const applyMaterialToSelection = useCallback((materialName: string) => {
+  const applyMaterialToSelection = useCallback(() => {
     setState((prev) => {
-      if (!materialName || !prev.selectedCellId) return prev;
-      const doc = prev.doc ? { ...prev.doc, grids: prev.doc.grids.map((g) => ({ ...g, cells: [...g.cells] })) } : null;
-      if (!doc) return prev;
+      if (!prev.doc || !prev.selectedMaterialName) return prev;
 
-      const material = (doc.materials?.materials ?? prev.materials).find((m) => m.name === materialName);
+      const targetCellIds = prev.selectedCellId ? [prev.selectedCellId] : [];
+      if (targetCellIds.length === 0) return prev;
+
+      const material = prev.materials.find((m) => m.name === prev.selectedMaterialName);
       if (!material) return prev;
 
-      const patch = materialToCellPreset(material);
-      let updated = false;
+      const nextDoc: FluxDocument = {
+        ...prev.doc,
+        grids: prev.doc.grids.map((grid) => ({
+          ...grid,
+          cells: grid.cells.map((cell) =>
+            targetCellIds.includes(cell.id)
+              ? { ...cell, mediaId: material.name, content: material.label ?? material.name }
+              : cell,
+          ),
+        })),
+        materials: prev.doc.materials
+          ? { materials: [...prev.doc.materials.materials] }
+          : { materials: [...prev.materials] },
+      };
 
-      for (const grid of doc.grids) {
-        grid.cells = grid.cells.map((cell) => {
-          if (cell.id === prev.selectedCellId) {
-            const nextCell = { ...cell } as any;
-            applyPresetToCell(nextCell, patch);
-            updated = true;
-            return nextCell;
-          }
-          return cell;
-        });
-      }
+      const materialsBlock = ensureMaterialsBlock(nextDoc);
+      materialsBlock.materials = [...prev.materials];
 
-      if (!updated) return prev;
-
-      if (!doc.materials && prev.materials.length) {
-        doc.materials = { materials: [...prev.materials] };
-      }
-
-      const nextSource = prettyPrintFluxDocument(doc);
+      const nextSource = prettyPrintFluxDocument(nextDoc);
 
       return {
         ...prev,
-        doc,
-        materials: getMaterialsFromDoc(doc),
+        doc: nextDoc,
+        materials: getMaterialsFromDoc(nextDoc),
         docSource: nextSource,
-        selectedMaterialName: materialName,
+        snapshot: snapshotFromDoc(nextDoc),
         isDirty: true,
       };
     });
@@ -258,8 +309,9 @@ export function useFluxEditorState(initialSource: string) {
     setSnapshot,
     setSelectedCellId,
     setSelectedMaterialName,
-    updateMaterial,
-    addMaterial,
+    setMaterialDraft,
+    startNewMaterialDraft,
+    saveMaterialDraft,
     deleteMaterial,
     updateCellMaterial,
     applyMaterialToSelection,
