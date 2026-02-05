@@ -12,6 +12,15 @@ import { Command } from "cmdk";
 import MonacoEditor, { loader } from "@monaco-editor/react";
 import type { DocumentNode, NodePropValue, RefreshPolicy } from "@flux-lang/core";
 import "./editor.css";
+import {
+  DividerHairline,
+  EditorFrame,
+  EditorToolbar,
+  InspectorPane,
+  OutlinePane,
+  PageStage,
+  StatusBar,
+} from "./components/EditorShell";
 import { monaco } from "./monaco";
 import { createDocService, type AssetItem } from "./docService";
 import { buildOutlineFromDoc, extractPlainText, getLiteralString, type OutlineNode } from "./docModel";
@@ -48,18 +57,25 @@ export default function EditorApp() {
   const doc = docState.doc;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
+  const [activeMode, setActiveMode] = useState<"preview" | "edit" | "source">("preview");
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [findIndex, setFindIndex] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const [assetPanelOpen, setAssetPanelOpen] = useState(true);
+  const [outlineQuery, setOutlineQuery] = useState("");
   const [debugSlots, setDebugSlots] = useState(false);
   const [sourceDraft, setSourceDraft] = useState("");
   const [isApplying, setIsApplying] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [toast, setToast] = useState<Toast | null>(null);
   const [draggingAsset, setDraggingAsset] = useState<AssetItem | null>(null);
+  const [inspectorVisible, setInspectorVisible] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth > 1100,
+  );
+  const [outlineWidth, setOutlineWidth] = useState(() => getStoredWidth("outline", 300));
+  const [inspectorWidth, setInspectorWidth] = useState(() => getStoredWidth("inspector", 320));
 
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const previewWrapRef = useRef<HTMLDivElement | null>(null);
@@ -86,6 +102,26 @@ export default function EditorApp() {
     const timer = window.setTimeout(() => setToast(null), 3000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("flux-editor-outline-width", String(outlineWidth));
+  }, [outlineWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("flux-editor-inspector-width", String(inspectorWidth));
+  }, [inspectorWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth < 1100) setInspectorVisible(false);
+    const handleResize = () => {
+      if (window.innerWidth < 1100) setInspectorVisible(false);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -191,6 +227,16 @@ export default function EditorApp() {
     return map;
   }, [outline]);
 
+  const breadcrumbs = useMemo(() => {
+    if (!selectedEntry) return [] as string[];
+    const pathIds = [...(selectedEntry.path ?? []), selectedEntry.id];
+    return pathIds.map((id) => labelMap.get(id) ?? id);
+  }, [labelMap, selectedEntry]);
+
+  const breadcrumbLabel = breadcrumbs.length ? breadcrumbs.join(" › ") : "Document";
+
+  const filteredOutline = useMemo(() => filterOutline(outline, outlineQuery), [outline, outlineQuery]);
+
   const searchItems = useMemo(() => {
     if (!doc?.ast?.body?.nodes) return [] as FindItem[];
     const items: FindItem[] = [];
@@ -257,6 +303,10 @@ export default function EditorApp() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget =
+        !!target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         setFindOpen(true);
@@ -265,9 +315,14 @@ export default function EditorApp() {
         event.preventDefault();
         setPaletteOpen(true);
       }
+      if (!isTypingTarget && event.key === "]") {
+        event.preventDefault();
+        setInspectorVisible((prev) => !prev);
+      }
       if (event.key === "Escape") {
         setFindOpen(false);
         setPaletteOpen(false);
+        setOverflowOpen(false);
       }
     };
     window.addEventListener("keydown", handler);
@@ -392,6 +447,52 @@ export default function EditorApp() {
     }
   }, [docService, sourceDraft, sourceDirty]);
 
+  const handleExportPdf = useCallback(() => {
+    setToast({ kind: "info", message: "PDF export is not available yet." });
+  }, []);
+
+  const handleCopyId = useCallback(async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setToast({ kind: "success", message: "Copied ID to clipboard." });
+    } catch {
+      setToast({ kind: "error", message: "Unable to copy ID." });
+    }
+  }, []);
+
+  const startResize = useCallback(
+    (side: "left" | "right") => (event: any) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = side === "left" ? outlineWidth : inspectorWidth;
+      const min = 240;
+      const max = 420;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      const handleMove = (moveEvent: PointerEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const next =
+          side === "left"
+            ? clamp(startWidth + delta, min, max)
+            : clamp(startWidth - delta, min, max);
+        if (side === "left") {
+          setOutlineWidth(next);
+        } else {
+          setInspectorWidth(next);
+        }
+      };
+      const handleUp = () => {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        window.removeEventListener("pointermove", handleMove);
+        window.removeEventListener("pointerup", handleUp);
+      };
+      window.addEventListener("pointermove", handleMove);
+      window.addEventListener("pointerup", handleUp);
+    },
+    [outlineWidth, inspectorWidth],
+  );
+
   const handleAssignAsset = useCallback(
     (asset: AssetItem, targetId: string) => {
       if (!doc?.ast || !doc?.index) return;
@@ -508,122 +609,132 @@ export default function EditorApp() {
   return (
     <div className="editor-root">
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="editor-shell">
-          <header className="editor-topbar">
-            <div className="topbar-left">
-              <div className="doc-title">{doc?.title ?? "Flux Document"}</div>
-              {doc?.docPath ? <div className="doc-path">{doc.docPath}</div> : null}
-            </div>
-            <div className="topbar-center">
-              <div className="insert-group">
-                <button className="btn" onClick={handleInsertSection} disabled={isApplying}>
-                  Section
-                </button>
-                <button className="btn" onClick={handleInsertTextSection} disabled={isApplying}>
-                  Text Section
-                </button>
-                <button className="btn" onClick={handleInsertFigure} disabled={isApplying}>
-                  Figure
-                </button>
-                <button className="btn" onClick={handleInsertCallout} disabled={isApplying}>
-                  Callout
-                </button>
-                <button className="btn" onClick={handleInsertTable} disabled={isApplying}>
-                  Table
-                </button>
+        <EditorFrame>
+          <EditorToolbar>
+            <div className="toolbar-left">
+              <div className="doc-identity">
+                <div className="doc-title">{doc?.title ?? "Flux Document"}</div>
+                {doc?.docPath ? <div className="doc-path">{doc.docPath}</div> : null}
               </div>
-              <div className="find-bar">
-                <button className="btn btn-ghost" onClick={() => setFindOpen((open) => !open)}>
-                  Find
-                </button>
-                {findOpen ? (
-                  <div className="find-popover">
-                    <input
-                      className="input"
-                      value={findQuery}
-                      onChange={(event) => {
-                        setFindQuery(event.target.value);
-                        setFindIndex(0);
-                      }}
-                      placeholder="Search text…"
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          if (findResults.length) {
-                            setFindIndex((prev) => (prev + 1) % findResults.length);
-                          }
-                        }
-                        if (event.key === "Escape") {
-                          setFindOpen(false);
-                        }
-                      }}
-                    />
-                    {findResults.length ? (
-                      <div className="find-results">
-                        {groupedFindResults.map((group) => (
-                          <div key={group.label} className="find-group">
-                            <div className="find-group-title">{group.label}</div>
-                            {group.items.map((item) => {
-                              const idx = findIndexLookup.get(item.id) ?? 0;
-                              return (
-                                <button
-                                  key={item.id}
-                                  className={`find-result ${idx === findIndex ? "is-active" : ""}`}
-                                  onClick={() => {
-                                    setFindIndex(idx);
-                                    setSelectedId(item.id);
-                                  }}
-                                >
-                                  <div className="find-text">{item.text}</div>
-                                  <div className="find-breadcrumbs">{item.breadcrumbs.join(" · ")}</div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
-                    ) : findQuery ? (
-                      <div className="find-empty">No matches</div>
-                    ) : null}
-                  </div>
-                ) : null}
+              <div className={`save-state save-${saveStatus} ${sourceDirty ? "is-dirty" : ""}`}>
+                <span className="save-dot" />
+                <span>{renderSaveStatus(saveStatus, sourceDirty)}</span>
               </div>
             </div>
-            <div className="topbar-right">
+            <div className="toolbar-center">
+              <div className="toolbar-group">
+                <button className="btn btn-ghost btn-xs" disabled>
+                  Fit Width
+                </button>
+                <button className="btn btn-ghost btn-xs" disabled>
+                  100%
+                </button>
+                <button className="btn btn-ghost btn-xs" disabled>
+                  −
+                </button>
+                <button className="btn btn-ghost btn-xs" disabled>
+                  +
+                </button>
+              </div>
+              <div className="toolbar-separator" />
+              <div className="toolbar-group">
+                <button className="btn btn-ghost btn-xs" disabled>
+                  ◀
+                </button>
+                <span className="toolbar-page">12 / 42</span>
+                <button className="btn btn-ghost btn-xs" disabled>
+                  ▶
+                </button>
+              </div>
+              <div className="toolbar-separator" />
+              <div className="mode-tabs">
+                <button
+                  className={`mode-tab ${activeMode === "preview" ? "is-active" : ""}`}
+                  onClick={() => setActiveMode("preview")}
+                >
+                  Preview
+                </button>
+                <button
+                  className={`mode-tab ${activeMode === "edit" ? "is-active" : ""}`}
+                  onClick={() => setActiveMode("edit")}
+                >
+                  Edit Text
+                </button>
+                <button
+                  className={`mode-tab ${activeMode === "source" ? "is-active" : ""}`}
+                  onClick={() => setActiveMode("source")}
+                >
+                  Source
+                </button>
+              </div>
+            </div>
+            <div className="toolbar-right">
+              <button className="btn btn-ghost" onClick={() => setFindOpen(true)}>
+                Find
+              </button>
               <button className="btn btn-ghost" onClick={() => setPaletteOpen(true)}>
                 Commands
               </button>
-              <div className={`status-pill status-${saveStatus}`}>{renderSaveStatus(saveStatus, sourceDirty)}</div>
+              <button className="btn btn-primary" onClick={handleExportPdf}>
+                Export PDF
+              </button>
+              <button className="btn btn-ghost btn-icon" onClick={() => setOverflowOpen(true)}>
+                ⋯
+              </button>
             </div>
-          </header>
+          </EditorToolbar>
 
           <main className="editor-body">
-            <section className="editor-panel outline-panel">
-              <div className="panel-header">
-                <div className="panel-title">Outline</div>
-                <button className="btn btn-ghost" onClick={() => setAssetPanelOpen((open) => !open)}>
-                  {assetPanelOpen ? "Hide Assets" : "Assets"}
-                </button>
-              </div>
-              <div className="panel-body scroll">
-                <OutlineTree nodes={outline} selectedId={selectedId} onSelect={setSelectedId} />
-              </div>
-            </section>
-
-            <section className="editor-panel preview-panel">
-              <div className="panel-header">
-                <div className="panel-title">Preview</div>
-                <div className="panel-actions">
-                  <button className={`btn btn-ghost ${debugSlots ? "is-active" : ""}`} onClick={() => setDebugSlots((prev) => !prev)}>
-                    Debug
-                  </button>
-                  <button className="btn btn-ghost" onClick={() => setActiveTab(activeTab === "preview" ? "source" : "preview")}>
-                    {activeTab === "preview" ? "Source" : "Preview"}
+            <OutlinePane className="editor-pane outline-pane" style={{ width: outlineWidth }}>
+              <div className="pane-header">
+                <div className="pane-heading">
+                  <div className="pane-title">Outline</div>
+                  <div className="pane-breadcrumb">{breadcrumbLabel}</div>
+                </div>
+                <div className="pane-actions">
+                  <button className="btn btn-ghost btn-xs" onClick={() => setAssetPanelOpen((open) => !open)}>
+                    {assetPanelOpen ? "Hide Assets" : "Assets"}
                   </button>
                 </div>
               </div>
-              <div className="panel-body preview-body">
-                {activeTab === "preview" ? (
+              <div className="pane-search">
+                <input
+                  className="input input-quiet"
+                  value={outlineQuery}
+                  onChange={(event) => setOutlineQuery(event.target.value)}
+                  placeholder="Filter outline…"
+                />
+              </div>
+              <div className="pane-body scroll">
+                {filteredOutline.length ? (
+                  <OutlineTree nodes={filteredOutline} selectedId={selectedId} onSelect={setSelectedId} />
+                ) : (
+                  <div className="empty">{outlineQuery ? "No matches." : "No outline data."}</div>
+                )}
+              </div>
+              {assetPanelOpen ? (
+                <>
+                  <DividerHairline />
+                  <div className="pane-header pane-header-sub">
+                    <div className="pane-title">Asset Bank</div>
+                  </div>
+                  <div className="pane-body scroll asset-body">
+                    <AssetBrowser assets={doc?.assetsIndex ?? []} />
+                  </div>
+                </>
+              ) : null}
+            </OutlinePane>
+
+            <div
+              className="pane-resizer"
+              role="separator"
+              aria-orientation="vertical"
+              onPointerDown={startResize("left")}
+            />
+
+            <PageStage>
+              <div className="page-stage-inner">
+                <div className="paper-stack">
                   <div className="preview-wrap" ref={previewWrapRef}>
                     <iframe
                       ref={previewFrameRef}
@@ -633,106 +744,136 @@ export default function EditorApp() {
                       onLoad={handlePreviewLoad}
                     />
                   </div>
-                ) : (
-                  <div className="source-tab">
-                    <div className="source-toolbar">
-                      <span className="source-label">Source</span>
-                      <button className="btn" onClick={handleApplySource} disabled={!sourceDirty || isApplying}>
-                        Apply
-                      </button>
-                    </div>
-                    <MonacoEditor
-                      height="100%"
-                      language="plaintext"
-                      value={sourceDraft}
-                      onChange={(value) => setSourceDraft(value ?? "")}
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 13,
-                        wordWrap: "on",
-                        scrollBeyondLastLine: false,
-                      }}
-                      onMount={(editor, monacoInstance) => {
-                        monacoRef.current = monacoInstance;
-                        monacoEditorRef.current = editor;
-                        updateMonacoMarkers();
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="editor-panel inspector-panel">
-              <div className="panel-header">
-                <div className="panel-title">Inspector</div>
-                <div className="panel-actions">
-                  <button className="btn btn-ghost" onClick={() => setPaletteOpen(true)}>
-                    Palette
-                  </button>
                 </div>
               </div>
-              <div className="panel-body scroll">
-                {selectedNode ? (
-                  <div className="inspector-content">
-                    <div className="inspector-block">
-                      <div className="inspector-label">Selection</div>
-                      <div className="inspector-title">{labelMap.get(selectedNode.id) ?? selectedNode.id}</div>
-                      <div className="inspector-meta">
-                        {selectedNode.kind} · {selectedNode.id}
-                      </div>
-                    </div>
+            </PageStage>
 
-                    {activeTextNode ? (
-                      <div className="inspector-block">
-                        <div className="inspector-label">Rich Text</div>
-                        <RichTextEditor
-                          node={activeTextNode}
-                          existingIds={existingIds}
-                          onUpdate={debouncedRichTextUpdate}
-                          onInlineSlotSelect={(id) => {
-                            if (id) {
-                              setSelectedId(id);
-                            }
+            {inspectorVisible ? (
+              <>
+                <div
+                  className="pane-resizer"
+                  role="separator"
+                  aria-orientation="vertical"
+                  onPointerDown={startResize("right")}
+                />
+                <InspectorPane className="editor-pane inspector-pane" style={{ width: inspectorWidth }}>
+                  {activeMode === "source" ? (
+                    <>
+                      <div className="pane-header">
+                        <div className="pane-title">Source</div>
+                        <div className="pane-actions">
+                          <span className={`status-pill ${sourceDirty ? "status-dirty" : "status-saved"}`}>
+                            {sourceDirty ? "Unsaved" : "Clean"}
+                          </span>
+                          <button className="btn btn-ghost btn-xs" onClick={handleApplySource} disabled={!sourceDirty || isApplying}>
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+                      <div className="pane-body source-body">
+                        <MonacoEditor
+                          height="100%"
+                          language="plaintext"
+                          theme="vs-dark"
+                          value={sourceDraft}
+                          onChange={(value) => setSourceDraft(value ?? "")}
+                          options={{
+                            minimap: { enabled: false },
+                            fontSize: 12,
+                            wordWrap: "on",
+                            scrollBeyondLastLine: false,
                           }}
-                          onReady={(editor) => {
-                            richEditorRef.current = editor;
+                          onMount={(editor, monacoInstance) => {
+                            monacoRef.current = monacoInstance;
+                            monacoEditorRef.current = editor;
+                            updateMonacoMarkers();
                           }}
-                          highlightQuery={findOpen ? findQuery : undefined}
                         />
                       </div>
-                    ) : null}
-
-                    {selectedNode.kind === "inline_slot" ? (
-                      <InlineSlotInspector node={selectedNode} onChange={handleInlineSlotUpdate} />
-                    ) : null}
-
-                    {selectedNode.kind === "figure" ? (
-                      <div className="inspector-block">
-                        <div className="inspector-label">Figure</div>
-                        <div className="inspector-meta">Drop an asset onto the figure in the preview or outline.</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="pane-header">
+                        <div className="pane-title">Inspector</div>
+                        <div className="pane-actions">
+                          <button className="btn btn-ghost btn-xs" onClick={() => setPaletteOpen(true)}>
+                            Palette
+                          </button>
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="inspector-empty">Select a node to inspect properties.</div>
-                )}
-              </div>
-            </section>
+                      <div className="pane-body scroll">
+                        {selectedNode ? (
+                          <div className="inspector-content">
+                            <div className="inspector-header">
+                              <div className="inspector-title">{labelMap.get(selectedNode.id) ?? selectedNode.id}</div>
+                              <div className="inspector-meta">
+                                <span>{selectedNode.kind}</span>
+                                <button type="button" className="id-pill" onClick={() => handleCopyId(selectedNode.id)}>
+                                  #{selectedNode.id}
+                                </button>
+                              </div>
+                              <div className="inspector-actions">
+                                <button className="btn btn-ghost btn-xs" type="button" disabled>
+                                  Duplicate
+                                </button>
+                                <button className="btn btn-ghost btn-xs" type="button" disabled>
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
 
-            {assetPanelOpen ? (
-              <section className="editor-panel assets-panel">
-                <div className="panel-header">
-                  <div className="panel-title">Asset Bank</div>
-                </div>
-                <div className="panel-body scroll">
-                  <AssetBrowser assets={doc?.assetsIndex ?? []} />
-                </div>
-              </section>
+                            {activeTextNode ? (
+                              <div className="inspector-section">
+                                <div className="section-title">Content</div>
+                                {activeMode === "edit" ? (
+                                  <RichTextEditor
+                                    node={activeTextNode}
+                                    existingIds={existingIds}
+                                    onUpdate={debouncedRichTextUpdate}
+                                    onInlineSlotSelect={(id) => {
+                                      if (id) {
+                                        setSelectedId(id);
+                                      }
+                                    }}
+                                    onReady={(editor) => {
+                                      richEditorRef.current = editor;
+                                    }}
+                                    highlightQuery={findOpen ? findQuery : undefined}
+                                  />
+                                ) : (
+                                  <div className="section-hint">Switch to Edit Text to modify content.</div>
+                                )}
+                              </div>
+                            ) : activeMode === "edit" ? (
+                              <div className="inspector-section">
+                                <div className="section-title">Content</div>
+                                <div className="section-hint">Select a text node to edit.</div>
+                              </div>
+                            ) : null}
+
+                            {selectedNode.kind === "inline_slot" ? (
+                              <InlineSlotInspector node={selectedNode} onChange={handleInlineSlotUpdate} />
+                            ) : null}
+
+                            {selectedNode.kind === "figure" ? (
+                              <div className="inspector-section">
+                                <div className="section-title">Figure</div>
+                                <div className="section-hint">Drop an asset onto the figure in the preview or outline.</div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="inspector-empty">Select a node to inspect properties.</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </InspectorPane>
+              </>
             ) : null}
           </main>
 
-          <footer className="editor-statusbar">
+          <StatusBar>
             <div className="status-left">
               <span className={`status-pill status-${saveStatus}`}>{renderSaveStatus(saveStatus, sourceDirty)}</span>
               {doc?.docPath ? <span className="status-path">{doc.docPath}</span> : null}
@@ -743,9 +884,109 @@ export default function EditorApp() {
               <span className="diag warn">Warn {diagnosticsSummary.warn}</span>
               <span className="diag fail">Fail {diagnosticsSummary.fail}</span>
             </div>
-          </footer>
+          </StatusBar>
 
           {toast ? <div className={`toast toast-${toast.kind}`}>{toast.message}</div> : null}
+
+          {findOpen ? (
+            <div className="modal-layer" aria-hidden={!findOpen}>
+              <div className="modal-scrim" onClick={() => setFindOpen(false)} />
+              <div className="modal-panel find-panel" role="dialog" aria-modal="true">
+                <div className="modal-header">
+                  <span className="modal-title">Find in Document</span>
+                  <button className="btn btn-ghost btn-icon" onClick={() => setFindOpen(false)}>
+                    ✕
+                  </button>
+                </div>
+                <input
+                  className="input"
+                  autoFocus
+                  value={findQuery}
+                  onChange={(event) => {
+                    setFindQuery(event.target.value);
+                    setFindIndex(0);
+                  }}
+                  placeholder="Search text…"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      if (findResults.length) {
+                        setFindIndex((prev) => (prev + 1) % findResults.length);
+                      }
+                    }
+                    if (event.key === "Escape") {
+                      setFindOpen(false);
+                    }
+                  }}
+                />
+                {findResults.length ? (
+                  <div className="find-results">
+                    {groupedFindResults.map((group) => (
+                      <div key={group.label} className="find-group">
+                        <div className="find-group-title">{group.label}</div>
+                        {group.items.map((item) => {
+                          const idx = findIndexLookup.get(item.id) ?? 0;
+                          return (
+                            <button
+                              key={item.id}
+                              className={`find-result ${idx === findIndex ? "is-active" : ""}`}
+                              onClick={() => {
+                                setFindIndex(idx);
+                                setSelectedId(item.id);
+                              }}
+                            >
+                              <div className="find-text">{item.text}</div>
+                              <div className="find-breadcrumbs">{item.breadcrumbs.join(" · ")}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ) : findQuery ? (
+                  <div className="find-empty">No matches</div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {overflowOpen ? (
+            <div className="modal-layer" aria-hidden={!overflowOpen}>
+              <div className="modal-scrim" onClick={() => setOverflowOpen(false)} />
+              <div className="modal-panel overflow-panel" role="dialog" aria-modal="true">
+                <div className="modal-header">
+                  <span className="modal-title">Display</span>
+                  <button className="btn btn-ghost btn-icon" onClick={() => setOverflowOpen(false)}>
+                    ✕
+                  </button>
+                </div>
+                <div className="overflow-list">
+                  <button
+                    className={`overflow-item ${debugSlots ? "is-active" : ""}`}
+                    onClick={() => setDebugSlots((prev) => !prev)}
+                  >
+                    Slot outlines
+                    <span>{debugSlots ? "On" : "Off"}</span>
+                  </button>
+                  <button
+                    className={`overflow-item ${inspectorVisible ? "is-active" : ""}`}
+                    onClick={() => setInspectorVisible((prev) => !prev)}
+                  >
+                    Inspector pane
+                    <span>{inspectorVisible ? "On" : "Off"}</span>
+                  </button>
+                  <div className="overflow-item is-disabled" aria-disabled="true">
+                    Show IDs
+                    <span>Coming soon</span>
+                  </div>
+                  <div className="overflow-item is-disabled" aria-disabled="true">
+                    Patch log
+                    <span>Coming soon</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <CommandPalette
             open={paletteOpen}
@@ -755,7 +996,7 @@ export default function EditorApp() {
             headingItems={commandItems.headingItems}
             utilityItems={commandItems.utilityItems}
           />
-        </div>
+        </EditorFrame>
 
         <DragOverlay>
           {draggingAsset ? (
@@ -812,7 +1053,7 @@ function OutlineItem({
         type="button"
         ref={droppable.setNodeRef}
         className={`outline-btn ${isSelected ? "is-selected" : ""} ${droppable.isOver ? "is-over" : ""}`}
-        style={{ paddingLeft: `${depth * 12 + 12}px` }}
+        style={{ paddingLeft: `${depth * 12 + 16}px` }}
         onClick={() => onSelect(node.id)}
       >
         <span className="outline-kind">{node.kind}</span>
@@ -946,10 +1187,10 @@ function InlineSlotInspector({ node, onChange }: { node: DocumentNode; onChange:
   }, [node.id, node.props, node.refresh]);
 
   return (
-    <div className="inspector-block">
-      <div className="inspector-label">Inline Slot</div>
+    <div className="inspector-section">
+      <div className="section-title">Slot</div>
       <label className="field">
-        Content
+        <span>Content</span>
         <input
           className="input"
           value={text}
@@ -958,7 +1199,7 @@ function InlineSlotInspector({ node, onChange }: { node: DocumentNode; onChange:
         />
       </label>
       <label className="field">
-        Reserve
+        <span>Reserve</span>
         <input
           className="input"
           value={reserve}
@@ -967,7 +1208,7 @@ function InlineSlotInspector({ node, onChange }: { node: DocumentNode; onChange:
         />
       </label>
       <label className="field">
-        Fit
+        <span>Fit</span>
         <select
           className="select"
           value={fit}
@@ -984,7 +1225,7 @@ function InlineSlotInspector({ node, onChange }: { node: DocumentNode; onChange:
         </select>
       </label>
       <label className="field">
-        Refresh
+        <span>Refresh</span>
         <select
           className="select"
           value={refresh}
@@ -1018,7 +1259,13 @@ function CommandPalette({
   utilityItems: { id: string; label: string; action: () => void }[];
 }) {
   return (
-    <Command.Dialog className="command-dialog" open={open} onOpenChange={onOpenChange}>
+    <Command.Dialog
+      className="command-root"
+      open={open}
+      onOpenChange={onOpenChange}
+      overlayClassName="cmdk-overlay"
+      contentClassName="command-dialog"
+    >
       <Command.Input className="command-input" placeholder="Type a command…" />
       <Command.List className="command-list">
         <Command.Group heading="Insert">
@@ -1095,8 +1342,8 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(callback: T, d
 
 function renderSaveStatus(status: "idle" | "saving" | "saved" | "error", dirty: boolean) {
   if (status === "saving") return "Saving…";
-  if (status === "error") return "Error";
-  if (dirty) return "Unsaved";
+  if (status === "error") return "Error !";
+  if (dirty) return "Unsaved •";
   return "Saved ✓";
 }
 
@@ -1215,4 +1462,30 @@ function dropAssetOnPreview(
   const nodeId = fluxEl.getAttribute("data-flux-node");
   if (resolveId) return nodeId ?? false;
   return Boolean(nodeId);
+}
+
+function filterOutline(nodes: OutlineNode[], query: string): OutlineNode[] {
+  if (!query.trim()) return nodes;
+  const lower = query.trim().toLowerCase();
+  const matches = (node: OutlineNode) =>
+    node.label.toLowerCase().includes(lower) || node.kind.toLowerCase().includes(lower);
+  const walk = (node: OutlineNode): OutlineNode | null => {
+    const nextChildren = node.children.map(walk).filter(Boolean) as OutlineNode[];
+    if (matches(node) || nextChildren.length) {
+      return { ...node, children: nextChildren };
+    }
+    return null;
+  };
+  return nodes.map(walk).filter(Boolean) as OutlineNode[];
+}
+
+function getStoredWidth(key: "outline" | "inspector", fallback: number) {
+  if (typeof window === "undefined") return fallback;
+  const raw = window.localStorage.getItem(`flux-editor-${key}-width`);
+  const value = raw ? Number(raw) : NaN;
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
