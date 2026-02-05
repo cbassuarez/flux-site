@@ -16,7 +16,7 @@ pnpm dev
 ```
 
 ```bash
-pnpm build
+pnpm build:edit
 ```
 
 To test against the Flux viewer server, run the viewer and open `http://localhost:<port>/edit` so the editor loads under the `/edit/` base path.
@@ -24,7 +24,7 @@ To test against the Flux viewer server, run the viewer and open `http://localhos
 To build the marketing site at the root path, set `VITE_BASE=/`:
 
 ```bash
-VITE_BASE=/ pnpm build
+pnpm build:site
 ```
 
 ## Production build

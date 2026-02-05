@@ -8,6 +8,8 @@
     "sync:flux-version": "node ./scripts/sync-flux-version.mjs",
     "prebuild": "npm run sync:flux-version",
     "build": "vite build",
+    "build:edit": "vite build",
+    "build:site": "VITE_BASE=/ vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "postbuild": "node scripts/copy-404.mjs",
