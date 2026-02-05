@@ -44,13 +44,13 @@ function deriveFigureFields(node: OutlineNode | null): FigureFormState {
     };
   }
   const data = node.data as Record<string, unknown> | undefined;
-  const tagsValue = Array.isArray(data?.tags) ? (data?.tags as unknown[]).join(\", \") : \"\";
+  const tagsValue = Array.isArray(data?.tags) ? (data?.tags as unknown[]).join(", ") : "";
   return {
-    bankName: typeof data?.bankName === \"string\" ? (data?.bankName as string) : \"\",
+    bankName: typeof data?.bankName === "string" ? (data?.bankName as string) : "",
     tags: tagsValue,
-    caption: typeof data?.caption === \"string\" ? (data?.caption as string) : \"\",
-    reserve: typeof data?.reserve === \"string\" ? (data?.reserve as string) : FIGURE_RESERVES[0],
-    fit: typeof data?.fit === \"string\" ? (data?.fit as string) : FIGURE_FITS[0]
+    caption: typeof data?.caption === "string" ? (data?.caption as string) : "",
+    reserve: typeof data?.reserve === "string" ? (data?.reserve as string) : FIGURE_RESERVES[0],
+    fit: typeof data?.fit === "string" ? (data?.fit as string) : FIGURE_FITS[0]
   };
 }
 
