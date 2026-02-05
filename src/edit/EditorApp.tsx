@@ -177,152 +177,6 @@ export default function EditorApp() {
     frame.contentWindow.postMessage({ type: "flux-highlight", nodeId: selectedId }, "*");
   }, [selectedId]);
 
-  const handlePreviewLoad = useCallback(() => {
-    const frame = previewFrameRef.current;
-    if (!frame?.contentWindow) return;
-    frame.contentWindow.postMessage({ type: "flux-debug", enabled: debugSlots }, "*");
-    if (selectedId) {
-      frame.contentWindow.postMessage({ type: "flux-highlight", nodeId: selectedId }, "*");
-    }
-    if (previewCleanupRef.current) {
-      previewCleanupRef.current();
-      previewCleanupRef.current = null;
-    }
-    previewCleanupRef.current = attachPreviewListeners();
-    syncPreviewOverlays();
-    syncSlotLabels();
-    normalizeTextSlots();
-  }, [attachPreviewListeners, debugSlots, normalizeTextSlots, selectedId, syncPreviewOverlays, syncSlotLabels]);
-
-  useEffect(() => {
-    if (!draggingAsset) return;
-    const handler = (event: PointerEvent) => {
-      pointerRef.current = { x: event.clientX, y: event.clientY };
-    };
-    window.addEventListener("pointermove", handler);
-    return () => window.removeEventListener("pointermove", handler);
-  }, [draggingAsset]);
-
-  useEffect(() => {
-    if (!showIds) setHoveredId(null);
-  }, [showIds]);
-
-  useEffect(() => {
-    syncPreviewOverlays();
-  }, [syncPreviewOverlays]);
-
-  useEffect(() => {
-    syncSlotLabels();
-    normalizeTextSlots();
-  }, [normalizeTextSlots, syncSlotLabels, previewSrc]);
-
-  useEffect(() => {
-    if (frameDraft && frameEntry) {
-      applyFrameToPreview(frameDraft);
-    }
-  }, [applyFrameToPreview, frameDraft, frameEntry]);
-
-  useEffect(() => {
-    if (!adjustImageMode || !frameEntry) return;
-    const frameDoc = previewFrameRef.current?.contentDocument;
-    if (!frameDoc) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      const frameTarget = frameTargetRef.current;
-      if (!frameTarget || !target || !frameTarget.contains(target)) return;
-      event.preventDefault();
-      const base = frameDraftRef.current ?? readImageFrame(frameEntry.node);
-      frameDragRef.current = { startX: event.clientX, startY: event.clientY, frame: base };
-
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        const drag = frameDragRef.current;
-        if (!drag) return;
-        const dx = moveEvent.clientX - drag.startX;
-        const dy = moveEvent.clientY - drag.startY;
-        let next = { ...drag.frame };
-        if (moveEvent.shiftKey) {
-          next.scale = clamp(drag.frame.scale + -dy * 0.005, 0.5, 2.5);
-        } else {
-          next.offsetX = drag.frame.offsetX + dx;
-          next.offsetY = drag.frame.offsetY + dy;
-        }
-        frameDraftRef.current = next;
-        applyFrameToPreview(next);
-      };
-
-      const handlePointerUp = () => {
-        const finalFrame = frameDraftRef.current;
-        if (finalFrame) {
-          setFrameDraft(finalFrame);
-          commitFrame(finalFrame);
-        }
-        frameDragRef.current = null;
-        frameDoc.removeEventListener("pointermove", handlePointerMove);
-        frameDoc.removeEventListener("pointerup", handlePointerUp);
-      };
-
-      frameDoc.addEventListener("pointermove", handlePointerMove);
-      frameDoc.addEventListener("pointerup", handlePointerUp);
-    };
-
-    const handleWheel = (event: WheelEvent) => {
-      const target = event.target as Node | null;
-      const frameTarget = frameTargetRef.current;
-      if (!frameTarget || !target || !frameTarget.contains(target)) return;
-      event.preventDefault();
-      const base = frameDraftRef.current ?? readImageFrame(frameEntry.node);
-      const next = {
-        ...base,
-        scale: clamp(base.scale + -event.deltaY * 0.0015, 0.5, 2.5),
-      };
-      frameDraftRef.current = next;
-      setFrameDraft(next);
-      applyFrameToPreview(next);
-      debouncedCommitFrame(next);
-    };
-
-    frameDoc.addEventListener("pointerdown", handlePointerDown);
-    frameDoc.addEventListener("wheel", handleWheel, { passive: false });
-    return () => {
-      frameDoc.removeEventListener("pointerdown", handlePointerDown);
-      frameDoc.removeEventListener("wheel", handleWheel);
-    };
-  }, [adjustImageMode, applyFrameToPreview, commitFrame, debouncedCommitFrame, frameEntry]);
-
-  useEffect(() => {
-    if (!adjustImageMode || !frameEntry) return;
-    const handleKey = (event: KeyboardEvent) => {
-      if (!frameDraftRef.current) return;
-      const delta = event.shiftKey ? 10 : 1;
-      let next = { ...frameDraftRef.current };
-      let changed = false;
-      if (event.key === "ArrowLeft") {
-        next.offsetX -= delta;
-        changed = true;
-      }
-      if (event.key === "ArrowRight") {
-        next.offsetX += delta;
-        changed = true;
-      }
-      if (event.key === "ArrowUp") {
-        next.offsetY -= delta;
-        changed = true;
-      }
-      if (event.key === "ArrowDown") {
-        next.offsetY += delta;
-        changed = true;
-      }
-      if (!changed) return;
-      event.preventDefault();
-      frameDraftRef.current = next;
-      setFrameDraft(next);
-      applyFrameToPreview(next);
-      debouncedCommitFrame(next);
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [adjustImageMode, applyFrameToPreview, debouncedCommitFrame, frameEntry]);
 
   const outline = useMemo(() => buildOutlineFromDoc(doc?.ast ?? null), [doc?.ast]);
 
@@ -490,6 +344,153 @@ export default function EditorApp() {
       frameDoc.removeEventListener("pointerleave", handlePointerLeave);
     };
   }, []);
+
+  const handlePreviewLoad = useCallback(() => {
+    const frame = previewFrameRef.current;
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.postMessage({ type: "flux-debug", enabled: debugSlots }, "*");
+    if (selectedId) {
+      frame.contentWindow.postMessage({ type: "flux-highlight", nodeId: selectedId }, "*");
+    }
+    if (previewCleanupRef.current) {
+      previewCleanupRef.current();
+      previewCleanupRef.current = null;
+    }
+    previewCleanupRef.current = attachPreviewListeners();
+    syncPreviewOverlays();
+    syncSlotLabels();
+    normalizeTextSlots();
+  }, [attachPreviewListeners, debugSlots, normalizeTextSlots, selectedId, syncPreviewOverlays, syncSlotLabels]);
+
+  useEffect(() => {
+    if (!draggingAsset) return;
+    const handler = (event: PointerEvent) => {
+      pointerRef.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener("pointermove", handler);
+    return () => window.removeEventListener("pointermove", handler);
+  }, [draggingAsset]);
+
+  useEffect(() => {
+    if (!showIds) setHoveredId(null);
+  }, [showIds]);
+
+  useEffect(() => {
+    syncPreviewOverlays();
+  }, [syncPreviewOverlays]);
+
+  useEffect(() => {
+    syncSlotLabels();
+    normalizeTextSlots();
+  }, [normalizeTextSlots, syncSlotLabels, previewSrc]);
+
+  useEffect(() => {
+    if (frameDraft && frameEntry) {
+      applyFrameToPreview(frameDraft);
+    }
+  }, [applyFrameToPreview, frameDraft, frameEntry]);
+
+  useEffect(() => {
+    if (!adjustImageMode || !frameEntry) return;
+    const frameDoc = previewFrameRef.current?.contentDocument;
+    if (!frameDoc) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      const frameTarget = frameTargetRef.current;
+      if (!frameTarget || !target || !frameTarget.contains(target)) return;
+      event.preventDefault();
+      const base = frameDraftRef.current ?? readImageFrame(frameEntry.node);
+      frameDragRef.current = { startX: event.clientX, startY: event.clientY, frame: base };
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const drag = frameDragRef.current;
+        if (!drag) return;
+        const dx = moveEvent.clientX - drag.startX;
+        const dy = moveEvent.clientY - drag.startY;
+        let next = { ...drag.frame };
+        if (moveEvent.shiftKey) {
+          next.scale = clamp(drag.frame.scale + -dy * 0.005, 0.5, 2.5);
+        } else {
+          next.offsetX = drag.frame.offsetX + dx;
+          next.offsetY = drag.frame.offsetY + dy;
+        }
+        frameDraftRef.current = next;
+        applyFrameToPreview(next);
+      };
+
+      const handlePointerUp = () => {
+        const finalFrame = frameDraftRef.current;
+        if (finalFrame) {
+          setFrameDraft(finalFrame);
+          commitFrame(finalFrame);
+        }
+        frameDragRef.current = null;
+        frameDoc.removeEventListener("pointermove", handlePointerMove);
+        frameDoc.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      frameDoc.addEventListener("pointermove", handlePointerMove);
+      frameDoc.addEventListener("pointerup", handlePointerUp);
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      const target = event.target as Node | null;
+      const frameTarget = frameTargetRef.current;
+      if (!frameTarget || !target || !frameTarget.contains(target)) return;
+      event.preventDefault();
+      const base = frameDraftRef.current ?? readImageFrame(frameEntry.node);
+      const next = {
+        ...base,
+        scale: clamp(base.scale + -event.deltaY * 0.0015, 0.5, 2.5),
+      };
+      frameDraftRef.current = next;
+      setFrameDraft(next);
+      applyFrameToPreview(next);
+      debouncedCommitFrame(next);
+    };
+
+    frameDoc.addEventListener("pointerdown", handlePointerDown);
+    frameDoc.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      frameDoc.removeEventListener("pointerdown", handlePointerDown);
+      frameDoc.removeEventListener("wheel", handleWheel);
+    };
+  }, [adjustImageMode, applyFrameToPreview, commitFrame, debouncedCommitFrame, frameEntry]);
+
+  useEffect(() => {
+    if (!adjustImageMode || !frameEntry) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (!frameDraftRef.current) return;
+      const delta = event.shiftKey ? 10 : 1;
+      let next = { ...frameDraftRef.current };
+      let changed = false;
+      if (event.key === "ArrowLeft") {
+        next.offsetX -= delta;
+        changed = true;
+      }
+      if (event.key === "ArrowRight") {
+        next.offsetX += delta;
+        changed = true;
+      }
+      if (event.key === "ArrowUp") {
+        next.offsetY -= delta;
+        changed = true;
+      }
+      if (event.key === "ArrowDown") {
+        next.offsetY += delta;
+        changed = true;
+      }
+      if (!changed) return;
+      event.preventDefault();
+      frameDraftRef.current = next;
+      setFrameDraft(next);
+      applyFrameToPreview(next);
+      debouncedCommitFrame(next);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [adjustImageMode, applyFrameToPreview, debouncedCommitFrame, frameEntry]);
 
   const updateMonacoMarkers = useCallback(() => {
     const monacoInstance = monacoRef.current;
