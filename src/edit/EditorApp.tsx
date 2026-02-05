@@ -1,782 +1,771 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import "./editor.css";
 import {
-  ApiError,
-  fetchEditNode,
-  fetchEditOutline,
-  fetchEditState,
-  postTransform,
-  type EditState
-} from "./api";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { DndContext, DragOverlay, PointerSensor, useDroppable, useDraggable, useSensor, useSensors } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { Command } from "cmdk";
+import MonacoEditor, { loader } from "@monaco-editor/react";
+import type { DocumentNode, NodePropValue, RefreshPolicy } from "@flux-lang/core";
+import "./editor.css";
+import { monaco } from "./monaco";
+import { createDocService, type AssetItem } from "./docService";
+import { buildOutlineFromDoc, extractPlainText, getLiteralString, type OutlineNode } from "./docModel";
+import RichTextEditor from "./RichTextEditor";
 import {
   buildAddCalloutTransform,
   buildAddFigureTransform,
   buildAddParagraphTransform,
   buildAddSectionTransform,
+  buildAddSlotTransform,
   buildAddTableTransform,
-  buildSetTextTransform,
-  type AddFigureArgs
 } from "./transforms";
-import { buildFallbackOutline, normalizeOutline, type OutlineNode } from "./outline";
-import { extractDiagnosticsItems, extractDiagnosticsSummary, type DiagnosticItem } from "./diagnostics";
+import { extractDiagnosticsItems, extractDiagnosticsSummary } from "./diagnostics";
+import { matchSorter } from "match-sorter";
 
-const FIGURE_RESERVES = ["360x240", "640x360", "960x540", "1200x800", "Auto"];
-const FIGURE_FITS = ["contain", "scaleDown", "clip", "ellipsis"];
+loader.config({ monaco });
 
 type Toast = {
   kind: "success" | "error" | "info";
   message: string;
 };
 
-type FigureFormState = {
-  bankName: string;
-  tags: string;
-  caption: string;
-  reserve: string;
-  fit: string;
-};
-
-type InspectorNode = {
+type FindItem = {
   id: string;
+  text: string;
+  breadcrumbs: string[];
   kind: string;
-  props?: Record<string, unknown>;
-  text?: string | null;
-  editable?: boolean;
-  textKind?: string | null;
-  childCount?: number;
-  label?: string;
 };
-
-function parseTags(value: string): string[] {
-  return value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0);
-}
-
-function extractDocTitle(state?: EditState | null): string {
-  if (!state) return "Untitled document";
-  const directTitle = typeof state.title === "string" ? state.title : undefined;
-  const metaTitle =
-    typeof (state as any).meta?.title === "string" ? ((state as any).meta?.title as string) : undefined;
-  const doc = (state as any).doc;
-  const docTitle = doc && typeof doc === "object" ? doc.title ?? doc.meta?.title : undefined;
-  return directTitle ?? metaTitle ?? docTitle ?? "Untitled document";
-}
-
-function extractDocPath(state?: EditState | null): string {
-  if (!state) return "";
-  const directPath = typeof state.path === "string" ? state.path : undefined;
-  const filePath =
-    typeof (state as any).file?.path === "string" ? ((state as any).file?.path as string) : undefined;
-  const doc = (state as any).doc;
-  const docPath = doc && typeof doc === "object" ? doc.path ?? doc.meta?.path : undefined;
-  return directPath ?? filePath ?? docPath ?? "";
-}
-
-function extractPreviewPath(state?: EditState | null): string {
-  if (!state) return "/";
-  const previewPath = typeof state.previewPath === "string" ? state.previewPath : undefined;
-  return previewPath ?? "/preview";
-}
-
-function withCacheBuster(path: string, nonce: number): string {
-  const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}t=${nonce}`;
-}
-
-function canUseCapability(state: EditState | null, key: string): boolean {
-  if (!state?.capabilities) return true;
-  const caps = state.capabilities as Record<string, unknown>;
-  if (typeof caps[key] === "boolean") return caps[key] as boolean;
-  if (typeof caps.transforms === "object" && caps.transforms && key in (caps.transforms as Record<string, unknown>)) {
-    const value = (caps.transforms as Record<string, unknown>)[key];
-    if (typeof value === "boolean") return value;
-  }
-  return true;
-}
-
-function pickStateFromResponse(payload: unknown): EditState | null {
-  if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
-  if (record.state && typeof record.state === "object") return record.state as EditState;
-  if (record.updatedState && typeof record.updatedState === "object") return record.updatedState as EditState;
-  if (record.doc || record.diagnostics || record.title || record.path || record.capabilities) {
-    return payload as EditState;
-  }
-  return null;
-}
-
-function pickDiagnosticsFromResponse(payload: unknown): unknown | null {
-  if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
-  if (record.diagnostics && typeof record.diagnostics === "object") return record.diagnostics as unknown;
-  if (record.state && typeof record.state === "object") {
-    const state = record.state as Record<string, unknown>;
-    if (state.diagnostics && typeof state.diagnostics === "object") return state.diagnostics as unknown;
-  }
-  return null;
-}
-
-function normalizeInspectorNode(payload: unknown, fallback?: OutlineNode | null): InspectorNode | null {
-  if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
-  const id = typeof record.id === "string" ? record.id : fallback?.id;
-  const kind = typeof record.kind === "string" ? record.kind : fallback?.kind;
-  if (!id || !kind) return null;
-  return {
-    id,
-    kind,
-    props: typeof record.props === "object" && record.props ? (record.props as Record<string, unknown>) : undefined,
-    text: typeof record.text === "string" ? record.text : record.text === null ? null : undefined,
-    editable: typeof record.editable === "boolean" ? record.editable : undefined,
-    textKind: typeof record.textKind === "string" ? record.textKind : undefined,
-    childCount: typeof record.childCount === "number" ? record.childCount : undefined,
-    label: fallback?.label
-  };
-}
-
-function summarizeProps(node: InspectorNode | null): string {
-  if (!node?.props) return "No properties";
-  const summary: string[] = [];
-  const keys = Object.keys(node.props);
-  for (const key of keys) {
-    const value = node.props[key] as any;
-    if (value && typeof value === "object" && "kind" in value) {
-      if (value.kind === "LiteralValue") {
-        summary.push(`${key}=${Array.isArray(value.value) ? "[...]" : String(value.value)}`);
-      } else if (value.kind === "DynamicValue") {
-        summary.push(`${key}=<expr>`);
-      }
-    }
-  }
-  if (!summary.length) return "No literal properties";
-  return summary.slice(0, 4).join(" · ");
-}
-
-function truncateMiddle(value: string, max = 48): string {
-  if (value.length <= max) return value;
-  const head = Math.max(6, Math.floor((max - 3) / 2));
-  const tail = Math.max(6, max - 3 - head);
-  return `${value.slice(0, head)}...${value.slice(value.length - tail)}`;
-}
-
-function findOutlineNode(nodes: OutlineNode[], id: string): OutlineNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    const child = findOutlineNode(node.children ?? [], id);
-    if (child) return child;
-  }
-  return null;
-}
 
 export default function EditorApp() {
-  const [state, setState] = useState<EditState | null>(null);
-  const [outline, setOutline] = useState<OutlineNode[]>([]);
-  const [outlineAvailable, setOutlineAvailable] = useState(true);
-  const [outlineError, setOutlineError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<ApiError | Error | null>(null);
+  const serviceRef = useRef(createDocService());
+  const docService = serviceRef.current;
+  const docState = useSyncExternalStore(docService.subscribe, docService.getState);
+  const doc = docState.doc;
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedOutline, setSelectedOutline] = useState<OutlineNode | null>(null);
-  const [selectedNode, setSelectedNode] = useState<InspectorNode | null>(null);
-  const [editText, setEditText] = useState("");
-  const [editDirty, setEditDirty] = useState(false);
-  const [toast, setToast] = useState<Toast | null>(null);
-  const [savedStatus, setSavedStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [liveStatus, setLiveStatus] = useState<"connecting" | "connected" | "unsupported">("connecting");
-  const [previewNonce, setPreviewNonce] = useState(() => Date.now());
-  const [figureModalOpen, setFigureModalOpen] = useState(false);
-  const [figureForm, setFigureForm] = useState<FigureFormState>({
-    bankName: "",
-    tags: "",
-    caption: "",
-    reserve: FIGURE_RESERVES[0],
-    fit: FIGURE_FITS[0]
-  });
+  const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findIndex, setFindIndex] = useState(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [assetPanelOpen, setAssetPanelOpen] = useState(true);
+  const [debugSlots, setDebugSlots] = useState(false);
+  const [sourceDraft, setSourceDraft] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [draggingAsset, setDraggingAsset] = useState<AssetItem | null>(null);
 
-  const docTitle = useMemo(() => extractDocTitle(state), [state]);
-  const docPath = useMemo(() => extractDocPath(state), [state]);
-  const previewPath = useMemo(() => extractPreviewPath(state), [state]);
-  const previewSrc = useMemo(() => withCacheBuster(previewPath, previewNonce), [previewPath, previewNonce]);
-  const propsSummary = useMemo(() => summarizeProps(selectedNode), [selectedNode]);
-  const statusLabel =
-    savedStatus === "saving" ? "Saving..." : savedStatus === "error" ? "Error" : editDirty ? "Unsaved" : "Saved ✓";
-  const statusClass =
-    savedStatus === "error"
-      ? "text-rose-300"
-      : editDirty
-        ? "text-amber-300"
-        : "text-emerald-300";
+  const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const previewWrapRef = useRef<HTMLDivElement | null>(null);
+  const richEditorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+  const monacoEditorRef = useRef<any>(null);
+  const pointerRef = useRef({ x: 0, y: 0 });
 
-  const diagnosticsSummary = useMemo(() => extractDiagnosticsSummary(state?.diagnostics), [state]);
-  const diagnosticsItems = useMemo<DiagnosticItem[]>(() => extractDiagnosticsItems(state?.diagnostics), [state]);
-
-  const outlineNodes = useMemo(() => {
-    if (outline.length) return outline;
-    return buildFallbackOutline(state);
-  }, [outline, state]);
-
-  const refreshPreview = useCallback(() => {
-    setPreviewNonce(Date.now());
-  }, []);
-
-  const loadState = useCallback(async () => {
-    const nextState = await fetchEditState();
-    setState(nextState);
-    if (nextState?.outline) {
-      setOutline(normalizeOutline(nextState.outline));
-    }
-    return nextState;
-  }, []);
-
-  const loadOutline = useCallback(
-    async (sourceState?: EditState | null) => {
-      try {
-        const outlinePayload = await fetchEditOutline();
-        if (outlinePayload == null) {
-          setOutlineAvailable(false);
-          setOutlineError(null);
-          if (sourceState?.outline) {
-            setOutline(normalizeOutline(sourceState.outline));
-          }
-          return;
-        }
-        setOutlineAvailable(true);
-        setOutlineError(null);
-        setOutline(normalizeOutline(outlinePayload));
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 404) {
-          setOutlineAvailable(false);
-          setOutlineError(null);
-          if (sourceState?.outline) {
-            setOutline(normalizeOutline(sourceState.outline));
-          }
-        } else {
-          setOutlineError((err as Error).message ?? "Failed to load outline");
-        }
-      }
-    },
-    []
-  );
-
-  const loadNode = useCallback(async (id: string, fallback?: OutlineNode | null) => {
-    try {
-      const payload = await fetchEditNode(id);
-      const normalized = normalizeInspectorNode(payload, fallback ?? null);
-      setSelectedNode(normalized);
-      setEditText(normalized?.text ?? "");
-      setEditDirty(false);
-    } catch (err) {
-      setSelectedNode(null);
-      setEditText("");
-      setEditDirty(false);
-    }
-  }, []);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(null);
-
-    (async () => {
-      try {
-        const nextState = await loadState();
-        if (!active) return;
-        await loadOutline(nextState);
-      } catch (err) {
-        if (!active) return;
-        setError(err as Error);
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [loadOutline, loadState]);
+    void docService.loadDoc();
+  }, [docService]);
 
   useEffect(() => {
-    if (!selectedId) {
-      setSelectedNode(null);
-      setSelectedOutline(null);
-      setEditText("");
-      setEditDirty(false);
-      return;
+    if (!doc?.source) return;
+    if (sourceDraft.trim() === "" || sourceDraft === doc.source) {
+      setSourceDraft(doc.source);
     }
-    const fallback = findOutlineNode(outlineNodes, selectedId);
-    setSelectedOutline(fallback);
-    loadNode(selectedId, fallback ?? null);
-  }, [selectedId, outlineNodes, loadNode]);
+  }, [doc?.source, sourceDraft]);
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 3500);
+    const timer = window.setTimeout(() => setToast(null), 3000);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
   useEffect(() => {
-    let eventSource: EventSource | null = null;
-    let closed = false;
-
-    try {
-      eventSource = new EventSource("/api/events");
-      setLiveStatus("connecting");
-    } catch {
-      setLiveStatus("unsupported");
-      return;
-    }
-
-    const handleDocChanged = () => {
-      if (closed) return;
-      refreshPreview();
-      loadState().then((nextState) => loadOutline(nextState)).catch(() => undefined);
-    };
-
-    eventSource.addEventListener("doc-changed", handleDocChanged);
-    eventSource.onmessage = (event) => {
-      if (typeof event.data === "string" && event.data.includes("doc-changed")) {
-        handleDocChanged();
+    const handler = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== "object") return;
+      if (event.data.type === "flux-select" && event.data.nodeId) {
+        setSelectedId(String(event.data.nodeId));
       }
     };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
-    eventSource.onopen = () => {
-      if (!closed) setLiveStatus("connected");
+  useEffect(() => {
+    const frame = previewFrameRef.current;
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.postMessage({ type: "flux-debug", enabled: debugSlots }, "*");
+  }, [debugSlots]);
+
+  useEffect(() => {
+    const frame = previewFrameRef.current;
+    if (!frame?.contentWindow || !selectedId) return;
+    frame.contentWindow.postMessage({ type: "flux-highlight", nodeId: selectedId }, "*");
+  }, [selectedId]);
+
+  const handlePreviewLoad = useCallback(() => {
+    const frame = previewFrameRef.current;
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.postMessage({ type: "flux-debug", enabled: debugSlots }, "*");
+    if (selectedId) {
+      frame.contentWindow.postMessage({ type: "flux-highlight", nodeId: selectedId }, "*");
+    }
+  }, [debugSlots, selectedId]);
+
+  useEffect(() => {
+    if (!draggingAsset) return;
+    const handler = (event: PointerEvent) => {
+      pointerRef.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener("pointermove", handler);
+    return () => window.removeEventListener("pointermove", handler);
+  }, [draggingAsset]);
+
+  const outline = useMemo(() => buildOutlineFromDoc(doc?.ast ?? null), [doc?.ast]);
+
+  useEffect(() => {
+    if (selectedId || !outline.length) return;
+    setSelectedId(outline[0].id);
+  }, [outline, selectedId]);
+
+  const selectedEntry = useMemo(() => {
+    if (!selectedId || !doc?.index) return null;
+    return doc.index.get(selectedId) ?? null;
+  }, [doc?.index, selectedId]);
+
+  const selectedNode = selectedEntry?.node ?? null;
+  const existingIds = useMemo(() => new Set(doc?.index?.keys() ?? []), [doc?.index]);
+
+  const activeTextEntry = useMemo(() => {
+    if (!selectedEntry || !doc?.index) return null;
+    let entry: typeof selectedEntry | null = selectedEntry;
+    while (entry && entry.node.kind !== "text") {
+      entry = entry.parentId ? doc.index.get(entry.parentId) ?? null : null;
+    }
+    return entry;
+  }, [selectedEntry, doc?.index]);
+
+  const activeTextNode = activeTextEntry?.node ?? null;
+
+  const diagnosticsSummary = useMemo(() => extractDiagnosticsSummary(doc?.diagnostics), [doc?.diagnostics]);
+  const diagnosticsItems = useMemo(() => extractDiagnosticsItems(doc?.diagnostics), [doc?.diagnostics]);
+  const previewSrc = useMemo(() => buildPreviewSrc(doc?.previewPath, doc?.revision), [doc?.previewPath, doc?.revision]);
+
+  const updateMonacoMarkers = useCallback(() => {
+    const monacoInstance = monacoRef.current;
+    const editor = monacoEditorRef.current;
+    if (!monacoInstance || !editor) return;
+    const markers = diagnosticsItems
+      .filter((item) => item.range)
+      .map((item) => ({
+        message: item.message,
+        severity:
+          item.level === "fail" ? monacoInstance.MarkerSeverity.Error : monacoInstance.MarkerSeverity.Warning,
+        startLineNumber: item.range?.start.line ?? 1,
+        startColumn: item.range?.start.column ?? 1,
+        endLineNumber: item.range?.end.line ?? item.range?.start.line ?? 1,
+        endColumn: item.range?.end.column ?? item.range?.start.column ?? 1,
+      }));
+    const model = editor.getModel();
+    if (model) monacoInstance.editor.setModelMarkers(model, "flux", markers);
+  }, [diagnosticsItems]);
+
+  useEffect(() => {
+    updateMonacoMarkers();
+  }, [updateMonacoMarkers]);
+
+  const labelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const walk = (node: OutlineNode) => {
+      map.set(node.id, node.label);
+      node.children.forEach(walk);
+    };
+    outline.forEach(walk);
+    return map;
+  }, [outline]);
+
+  const searchItems = useMemo(() => {
+    if (!doc?.ast?.body?.nodes) return [] as FindItem[];
+    const items: FindItem[] = [];
+
+    const walk = (node: DocumentNode, breadcrumbs: string[]) => {
+      const nextBreadcrumbs =
+        node.kind === "page" || node.kind === "section" || node.kind === "figure"
+          ? [...breadcrumbs, labelMap.get(node.id) ?? node.id]
+          : breadcrumbs;
+
+      if (node.kind === "text") {
+        const text = extractPlainText(node).trim();
+        if (text) {
+          items.push({
+            id: node.id,
+            text,
+            breadcrumbs: nextBreadcrumbs,
+            kind: node.kind,
+          });
+        }
+      }
+
+      node.children?.forEach((child) => walk(child, nextBreadcrumbs));
     };
 
-    eventSource.onerror = () => {
-      if (closed) return;
-      setLiveStatus("unsupported");
-      eventSource?.close();
-    };
+    doc.ast.body.nodes.forEach((node) => walk(node, []));
+    return items;
+  }, [doc?.ast, labelMap]);
 
-    return () => {
-      closed = true;
-      eventSource?.close();
+  const findResults = useMemo(() => {
+    if (!findQuery.trim()) return [] as FindItem[];
+    const lower = findQuery.trim().toLowerCase();
+    return searchItems.filter((item) => item.text.toLowerCase().includes(lower));
+  }, [findQuery, searchItems]);
+
+  const findIndexLookup = useMemo(() => {
+    const map = new Map<string, number>();
+    findResults.forEach((item, idx) => map.set(item.id, idx));
+    return map;
+  }, [findResults]);
+
+  const visibleFindResults = useMemo(() => findResults.slice(0, 8), [findResults]);
+
+  const groupedFindResults = useMemo(() => {
+    const groups = new Map<string, FindItem[]>();
+    for (const item of visibleFindResults) {
+      const label = item.breadcrumbs.slice(0, 2).join(" · ") || "Document";
+      const list = groups.get(label);
+      if (list) {
+        list.push(item);
+      } else {
+        groups.set(label, [item]);
+      }
+    }
+    return Array.from(groups, ([label, items]) => ({ label, items }));
+  }, [visibleFindResults]);
+
+  const activeFindItem = findResults.length ? findResults[Math.min(findIndex, findResults.length - 1)] : null;
+
+  useEffect(() => {
+    if (!activeFindItem) return;
+    setSelectedId(activeFindItem.id);
+  }, [activeFindItem]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setFindOpen(true);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+      if (event.key === "Escape") {
+        setFindOpen(false);
+        setPaletteOpen(false);
+      }
     };
-  }, [loadOutline, loadState, refreshPreview]);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const sourceDirty = doc?.source ? sourceDraft !== doc.source : false;
 
   const handleTransform = useCallback(
-    async (request: { op: string; args: Record<string, unknown> }, successMessage: string) => {
+    async (transform: { op: string; args: Record<string, unknown> }, successMessage?: string) => {
       setIsApplying(true);
-      setSavedStatus("saving");
-
-      try {
-        const payload = await postTransform(request);
-        const ok = (payload as any)?.ok !== false;
-        const nextDiagnostics = pickDiagnosticsFromResponse(payload);
-
-        if (!ok) {
-          setState((prev) => (nextDiagnostics ? { ...(prev ?? {}), diagnostics: nextDiagnostics } : prev));
-          const message = typeof (payload as any)?.error === "string" ? (payload as any).error : "Transform failed";
-          setSavedStatus("error");
-          setToast({ kind: "error", message });
-          
-          return false;
-        }
-
-        const nextState = pickStateFromResponse(payload) ?? (await loadState());
-        setState(nextState);
-        if ((payload as any)?.outline) {
-          setOutline(normalizeOutline((payload as any).outline));
-        }
-        await loadOutline(nextState);
-        setSavedStatus("saved");
-        setToast({ kind: "success", message: successMessage });
-        if (liveStatus !== "connected") {
-          refreshPreview();
-        }
-        return true;
-      } catch (err) {
-        const message = err instanceof ApiError ? err.message : "Transform failed";
-        setSavedStatus("error");
-        setToast({ kind: "error", message });
-        return false;
-      } finally {
-        setIsApplying(false);
+      setSaveStatus("saving");
+      const nextState = await docService.applyTransform(transform, { pushHistory: true });
+      setIsApplying(false);
+      if (nextState.status === "ready") {
+        setSaveStatus("saved");
+        if (successMessage) setToast({ kind: "success", message: successMessage });
+      } else {
+        setSaveStatus("error");
+        setToast({ kind: "error", message: nextState.error ?? "Transform failed" });
       }
     },
-    [loadOutline, loadState, liveStatus, refreshPreview]
+    [docService],
   );
 
-  const handleAddSection = useCallback(() => {
-    return handleTransform(buildAddSectionTransform(), "Section added");
+  const debouncedRichTextUpdate = useDebouncedCallback((node: DocumentNode) => {
+    void handleTransform({ op: "replaceNode", args: { id: node.id, node } });
+  }, 400);
+
+  const handleInlineSlotUpdate = useCallback(
+    (payload: { text?: string; reserve?: string; fit?: string; refresh?: RefreshPolicy }) => {
+      if (!selectedNode || selectedNode.kind !== "inline_slot") return;
+      const props: Record<string, NodePropValue> = { ...(selectedNode.props ?? {}) };
+      if (payload.reserve !== undefined) props.reserve = { kind: "LiteralValue", value: payload.reserve };
+      if (payload.fit !== undefined) props.fit = { kind: "LiteralValue", value: payload.fit };
+      const nextChildren = (selectedNode.children ?? []).map((child) => {
+        if (child.kind !== "text") return child;
+        const current = getLiteralString(child.props?.content) ?? "";
+        const value = payload.text ?? current;
+        return {
+          ...child,
+          props: { ...(child.props ?? {}), content: { kind: "LiteralValue", value } },
+        };
+      });
+      const nextNode: DocumentNode = {
+        ...selectedNode,
+        props,
+        refresh: payload.refresh ?? selectedNode.refresh,
+        children: nextChildren,
+      };
+      void handleTransform({ op: "replaceNode", args: { id: nextNode.id, node: nextNode } });
+    },
+    [selectedNode, handleTransform],
+  );
+
+  const handleInsertSection = useCallback(() => {
+    void handleTransform(buildAddSectionTransform(), "Section added");
   }, [handleTransform]);
 
-  const handleAddParagraph = useCallback(() => {
-    return handleTransform(buildAddParagraphTransform(), "Paragraph added");
+  const handleInsertTextSection = useCallback(() => {
+    void handleTransform(buildAddSectionTransform({ noHeading: true }), "Text section added");
   }, [handleTransform]);
 
-  const handleAddCallout = useCallback(() => {
-    return handleTransform(buildAddCalloutTransform(), "Callout inserted");
+  const handleInsertParagraph = useCallback(() => {
+    void handleTransform(buildAddParagraphTransform(), "Paragraph added");
   }, [handleTransform]);
 
-  const handleAddTable = useCallback(() => {
-    return handleTransform(buildAddTableTransform(), "Table inserted");
+  const handleInsertFigure = useCallback(() => {
+    void handleTransform(
+      buildAddFigureTransform({ bankName: "", tags: [], caption: "", reserve: "", fit: "scaleDown" }),
+      "Figure added",
+    );
   }, [handleTransform]);
 
-  const handleApplyText = useCallback(async () => {
-    if (!selectedNode?.editable) return;
-    const ok = await handleTransform(buildSetTextTransform({ id: selectedNode.id, text: editText }), "Text updated");
-    if (ok) setEditDirty(false);
-  }, [editText, handleTransform, selectedNode]);
+  const handleInsertCallout = useCallback(() => {
+    void handleTransform(buildAddCalloutTransform(), "Callout inserted");
+  }, [handleTransform]);
 
-  const handleCancelEdit = useCallback(() => {
-    setEditText(selectedNode?.text ?? "");
-    setEditDirty(false);
-  }, [selectedNode]);
+  const handleInsertTable = useCallback(() => {
+    void handleTransform(buildAddTableTransform(), "Table inserted");
+  }, [handleTransform]);
 
-  const handleSelectNode = useCallback((node: OutlineNode) => {
-    setSelectedId(node.id);
-    setSelectedOutline(node);
+  const handleInsertSlot = useCallback(() => {
+    void handleTransform(buildAddSlotTransform(), "Slot inserted");
+  }, [handleTransform]);
+
+  const handleInsertInlineSlot = useCallback(() => {
+    const editor = richEditorRef.current;
+    if (!editor) return;
+    const ids = new Set(existingIds);
+    const inlineId = nextId("inlineSlot", ids);
+    const textId = nextId("slotText", ids);
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "inlineSlot",
+        attrs: {
+          id: inlineId,
+          textId,
+          text: "slot",
+          reserve: "fixedWidth(9, ch)",
+          fit: "ellipsis",
+          refresh: "onDocstep",
+        },
+      })
+      .run();
+  }, [doc?.index]);
+
+  const handleApplySource = useCallback(async () => {
+    if (!sourceDirty) return;
+    setIsApplying(true);
+    setSaveStatus("saving");
+    const nextState = await docService.saveDoc(sourceDraft);
+    setIsApplying(false);
+    if (nextState.status === "ready") {
+      setSaveStatus("saved");
+      setToast({ kind: "success", message: "Source applied" });
+    } else {
+      setSaveStatus("error");
+      setToast({ kind: "error", message: nextState.error ?? "Source apply failed" });
+    }
+  }, [docService, sourceDraft, sourceDirty]);
+
+  const handleAssignAsset = useCallback(
+    (asset: AssetItem, targetId: string) => {
+      if (!doc?.ast || !doc?.index) return;
+      const ids = new Set(doc.index.keys());
+      const assignment = buildAssetAssignment(doc.ast, doc.index, targetId, asset, ids);
+      if (!assignment) {
+        setToast({ kind: "error", message: "Drop a figure or slot target." });
+        return;
+      }
+      void handleTransform({ op: "replaceNode", args: { id: assignment.id, node: assignment.node } }, "Asset applied");
+    },
+    [doc?.ast, doc?.index, handleTransform],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: any) => {
+      const asset = event.active?.data?.current?.asset as AssetItem | undefined;
+      setDraggingAsset(null);
+      if (!asset) return;
+
+      const overData = event.over?.data?.current;
+      if (overData?.type === "outline-drop" && overData.nodeId) {
+        handleAssignAsset(asset, String(overData.nodeId));
+        return;
+      }
+
+      const nodeId = dropAssetOnPreview(
+        previewFrameRef.current,
+        previewWrapRef.current,
+        pointerRef.current,
+        true,
+      );
+      if (nodeId) {
+        handleAssignAsset(asset, nodeId);
+      }
+    },
+    [handleAssignAsset],
+  );
+
+  const handleDragStart = useCallback((event: any) => {
+    const asset = event.active?.data?.current?.asset as AssetItem | undefined;
+    if (asset) setDraggingAsset(asset);
   }, []);
 
-  const openFigureModal = useCallback(() => {
-    setFigureForm({
-      bankName: "",
-      tags: "",
-      caption: "",
-      reserve: FIGURE_RESERVES[0],
-      fit: FIGURE_FITS[0]
-    });
-    setFigureModalOpen(true);
-  }, []);
+  const commandItems = useMemo(() => {
+    const insertItems = [
+      { id: "insert-section", label: "Section", action: handleInsertSection },
+      { id: "insert-text-section", label: "Text Section", action: handleInsertTextSection },
+      { id: "insert-paragraph", label: "Paragraph", action: handleInsertParagraph },
+      { id: "insert-figure", label: "Figure", action: handleInsertFigure },
+      { id: "insert-callout", label: "Callout", action: handleInsertCallout },
+      { id: "insert-table", label: "Table", action: handleInsertTable },
+      { id: "insert-slot", label: "Slot", action: handleInsertSlot },
+      { id: "insert-inline-slot", label: "Inline Slot", action: handleInsertInlineSlot },
+    ];
 
-  const handleSubmitFigure = useCallback(async () => {
-    const payload: AddFigureArgs = {
-      bankName: figureForm.bankName,
-      tags: parseTags(figureForm.tags),
-      caption: figureForm.caption,
-      reserve: figureForm.reserve === "Auto" ? "" : figureForm.reserve,
-      fit: figureForm.fit
-    };
-    setFigureModalOpen(false);
-    await handleTransform(buildAddFigureTransform(payload), "Figure inserted");
-  }, [figureForm, handleTransform]);
+    const wrapItems = [
+      { id: "wrap-bold", label: "Wrap selection in Bold", action: () => richEditorRef.current?.chain().focus().toggleBold().run() },
+      { id: "wrap-italic", label: "Wrap selection in Italic", action: () => richEditorRef.current?.chain().focus().toggleItalic().run() },
+      { id: "wrap-code", label: "Wrap selection in Code", action: () => richEditorRef.current?.chain().focus().toggleCode().run() },
+      { id: "wrap-link", label: "Wrap selection in Link", action: () => richEditorRef.current?.chain().focus().toggleLink?.({ href: "" }).run() },
+    ];
 
-  const canAddSection = canUseCapability(state, "addSection");
-  const canAddParagraph = canUseCapability(state, "addParagraph");
-  const canAddFigure = canUseCapability(state, "addFigure");
-  const canAddCallout = canUseCapability(state, "addCallout");
-  const canAddTable = canUseCapability(state, "addTable");
+    const headingItems = searchItems
+      .filter((item) => item.kind === "text" && item.breadcrumbs.length)
+      .slice(0, 12)
+      .map((item) => ({
+        id: `goto-${item.id}`,
+        label: `Go to ${item.breadcrumbs[item.breadcrumbs.length - 1]}`,
+        action: () => setSelectedId(item.id),
+      }));
 
-  if (loading) {
+    const utilityItems = [
+      { id: "open-assets", label: "Open Asset Browser", action: () => setAssetPanelOpen(true) },
+      { id: "toggle-debug", label: debugSlots ? "Disable Debug Outlines" : "Enable Debug Outlines", action: () => setDebugSlots((prev) => !prev) },
+    ];
+
+    return { insertItems, wrapItems, headingItems, utilityItems };
+  }, [
+    handleInsertSection,
+    handleInsertTextSection,
+    handleInsertParagraph,
+    handleInsertFigure,
+    handleInsertCallout,
+    handleInsertTable,
+    handleInsertSlot,
+    handleInsertInlineSlot,
+    searchItems,
+    debugSlots,
+  ]);
+
+  if (docState.status === "loading") {
     return (
-      <div className="editor-root flex min-h-screen items-center justify-center text-slate-200">
-        <div className="panel w-[360px] animate-fade-up px-6 py-8 text-center">
-          <div className="mx-auto mb-3 h-10 w-10 rounded-full border-2 border-slate-600 border-t-cyan-400/80 animate-soft-pulse" />
-          <p className="text-sm text-slate-300">Loading editor state from the Flux viewer...</p>
-        </div>
+      <div className="editor-root">
+        <div className="editor-loading-panel">Loading editor state…</div>
       </div>
     );
   }
 
-  if (error) {
-    const message = error instanceof ApiError ? error.message : error.message;
+  if (docState.status === "error") {
     return (
-      <div className="editor-root flex min-h-screen items-center justify-center px-4 text-slate-200">
-        <div className="panel w-full max-w-lg animate-fade-up p-6">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="badge">Editor offline</span>
-            <button className="btn btn-muted" onClick={() => window.location.reload()}>
-              Retry
-            </button>
-          </div>
-          <h1 className="text-lg font-semibold text-slate-100">Unable to reach /api/edit/state</h1>
-          <p className="mt-2 text-sm text-slate-300">
-            {message}. Ensure the Flux viewer server is running and serving the editor at <span className="text-slate-100">/edit</span>.
-          </p>
+      <div className="editor-root">
+        <div className="editor-loading-panel">
+          <h2>Unable to load editor</h2>
+          <p>{docState.error ?? "Unknown error"}</p>
+          <button type="button" className="btn" onClick={() => void docService.loadDoc()}>
+            Retry
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="editor-root flex min-h-screen flex-col text-slate-100">
-      <header className="border-b border-slate-800/80 bg-slate-950/80 px-4 py-3 backdrop-blur">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Flux Guided Transforms</div>
-            <div className="mt-1 text-xl font-semibold text-slate-100">{docTitle}</div>
-            {docPath ? <div className="text-xs text-slate-400">{docPath}</div> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="btn btn-primary" onClick={handleAddSection} disabled={!canAddSection || isApplying}>
-              Add Section
-            </button>
-            <button className="btn btn-primary" onClick={handleAddParagraph} disabled={!canAddParagraph || isApplying}>
-              Add Paragraph
-            </button>
-            <button className="btn btn-primary" onClick={openFigureModal} disabled={!canAddFigure || isApplying}>
-              Add Figure
-            </button>
-            <button className="btn btn-primary" onClick={handleAddCallout} disabled={!canAddCallout || isApplying}>
-              Add Callout
-            </button>
-            <button className="btn btn-primary" onClick={handleAddTable} disabled={!canAddTable || isApplying}>
-              Add Table
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 lg:grid lg:grid-cols-[260px_minmax(0,1fr)_320px]">
-        <section className="panel flex min-h-0 flex-col">
-          <div className="panel-header">
-            <div className="flex items-center gap-2">
-              <span className="badge">Outline</span>
-              {!outlineAvailable ? <span className="text-xs text-slate-500">Fallback</span> : null}
+    <div className="editor-root">
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="editor-shell">
+          <header className="editor-topbar">
+            <div className="topbar-left">
+              <div className="doc-title">{doc?.title ?? "Flux Document"}</div>
+              {doc?.docPath ? <div className="doc-path">{doc.docPath}</div> : null}
             </div>
-            {outlineError ? <span className="text-xs text-rose-300">{outlineError}</span> : null}
-          </div>
-          <div className="panel-body min-h-0 flex-1 overflow-auto">
-            <OutlineTree
-              nodes={outlineNodes}
-              selectedId={selectedId}
-              onSelect={handleSelectNode}
-            />
-          </div>
-        </section>
-
-        <section className="panel flex min-h-0 flex-col">
-          <div className="panel-header">
-            <div className="flex items-center gap-2">
-              <span className="badge">Preview</span>
-              <span className="text-xs text-slate-400">{liveStatus === "connected" ? "Live" : "Manual"}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="btn btn-muted" onClick={refreshPreview}>
-                Refresh preview
-              </button>
-            </div>
-          </div>
-          <div className="panel-body flex min-h-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/70">
-              <iframe
-                title="Flux preview"
-                className="h-full w-full"
-                src={previewSrc}
-                sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
-              />
-            </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>Preview updates on transform or live events.</span>
-              <span>{liveStatus === "connected" ? "EventSource connected" : "EventSource not available"}</span>
-            </div>
-          </div>
-        </section>
-
-        <div className="flex min-h-0 flex-col gap-3">
-          <section className="panel flex min-h-0 flex-col">
-            <div className="panel-header">
-              <span className="badge">Inspector</span>
-              {selectedNode?.textKind ? <span className="text-xs text-slate-500">{selectedNode.textKind}</span> : null}
-            </div>
-            <div className="panel-body min-h-0 flex-1 overflow-auto">
-              {selectedNode ? (
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-slate-800/80 bg-slate-900/60 px-3 py-2">
-                    <div className="text-xs uppercase tracking-widest text-slate-500">Selection</div>
-                    <div className="mt-1 text-sm text-slate-100">
-                      {selectedOutline?.label ?? selectedNode.label ?? selectedNode.id}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      {selectedNode.kind} · {selectedNode.id}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">{propsSummary}</div>
-                  </div>
-                  {selectedNode.editable ? (
-                    <div className="space-y-2">
-                      <div className="text-xs uppercase tracking-widest text-slate-500">Text</div>
-                      {editText.includes("\n") || editText.length > 120 ? (
-                        <textarea
-                          className="textarea min-h-[120px]"
-                          value={editText}
-                          onChange={(event) => {
-                            setEditText(event.target.value);
-                            setEditDirty(true);
-                            setSavedStatus("idle");
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              handleCancelEdit();
-                            }
-                            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                              event.preventDefault();
-                              handleApplyText();
-                            }
-                          }}
-                        />
-                      ) : (
-                        <input
-                          className="input"
-                          value={editText}
-                          onChange={(event) => {
-                            setEditText(event.target.value);
-                            setEditDirty(true);
-                            setSavedStatus("idle");
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              handleCancelEdit();
-                            }
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleApplyText();
-                            }
-                          }}
-                        />
-                      )}
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="btn btn-primary"
-                          onClick={handleApplyText}
-                          disabled={!editDirty || isApplying}
-                        >
-                          Apply
-                        </button>
-                        <button className="btn btn-muted" onClick={handleCancelEdit} disabled={!editDirty || isApplying}>
-                          Cancel
-                        </button>
-                        <span className="text-xs text-slate-500">
-                          {editText.includes("\n") || editText.length > 120
-                            ? "Ctrl+Enter to apply · Esc to cancel"
-                            : "Enter to apply · Esc to cancel"}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-700/80 bg-slate-900/40 px-3 py-3 text-xs text-slate-500">
-                      This node is read-only in Phase 1. Select a heading or paragraph to edit text.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3 text-sm text-slate-400">
-                  <p>Select a node in the outline to inspect details.</p>
-                  <div className="rounded-lg border border-dashed border-slate-700/80 bg-slate-900/40 px-3 py-4 text-xs text-slate-500">
-                    Editable fields will appear here for headings and paragraphs.
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="panel flex min-h-0 flex-col">
-            <div className="panel-header">
-              <div className="flex items-center gap-2">
-                <span className="badge">Diagnostics</span>
-                <span className="text-emerald-300">Pass {diagnosticsSummary.pass}</span>
-                <span className="text-amber-300">Warn {diagnosticsSummary.warn}</span>
-                <span className="text-rose-300">Fail {diagnosticsSummary.fail}</span>
+            <div className="topbar-center">
+              <div className="insert-group">
+                <button className="btn" onClick={handleInsertSection} disabled={isApplying}>
+                  Section
+                </button>
+                <button className="btn" onClick={handleInsertTextSection} disabled={isApplying}>
+                  Text Section
+                </button>
+                <button className="btn" onClick={handleInsertFigure} disabled={isApplying}>
+                  Figure
+                </button>
+                <button className="btn" onClick={handleInsertCallout} disabled={isApplying}>
+                  Callout
+                </button>
+                <button className="btn" onClick={handleInsertTable} disabled={isApplying}>
+                  Table
+                </button>
               </div>
-              <button className="btn btn-muted" onClick={() => setDiagnosticsOpen((open) => !open)}>
-                {diagnosticsOpen ? "Hide" : "Show"}
-              </button>
+              <div className="find-bar">
+                <button className="btn btn-ghost" onClick={() => setFindOpen((open) => !open)}>
+                  Find
+                </button>
+                {findOpen ? (
+                  <div className="find-popover">
+                    <input
+                      className="input"
+                      value={findQuery}
+                      onChange={(event) => {
+                        setFindQuery(event.target.value);
+                        setFindIndex(0);
+                      }}
+                      placeholder="Search text…"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          if (findResults.length) {
+                            setFindIndex((prev) => (prev + 1) % findResults.length);
+                          }
+                        }
+                        if (event.key === "Escape") {
+                          setFindOpen(false);
+                        }
+                      }}
+                    />
+                    {findResults.length ? (
+                      <div className="find-results">
+                        {groupedFindResults.map((group) => (
+                          <div key={group.label} className="find-group">
+                            <div className="find-group-title">{group.label}</div>
+                            {group.items.map((item) => {
+                              const idx = findIndexLookup.get(item.id) ?? 0;
+                              return (
+                                <button
+                                  key={item.id}
+                                  className={`find-result ${idx === findIndex ? "is-active" : ""}`}
+                                  onClick={() => {
+                                    setFindIndex(idx);
+                                    setSelectedId(item.id);
+                                  }}
+                                >
+                                  <div className="find-text">{item.text}</div>
+                                  <div className="find-breadcrumbs">{item.breadcrumbs.join(" · ")}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    ) : findQuery ? (
+                      <div className="find-empty">No matches</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <div className="panel-body min-h-0 flex-1 overflow-auto">
-              {diagnosticsOpen ? (
-                diagnosticsItems.length ? (
-                  <div className="space-y-3">
-                    {diagnosticsItems.map((item, index) => (
-                      <button
-                        key={`${item.message}-${index}`}
-                        type="button"
-                        onClick={() => {
-                          if (item.nodeId) setSelectedId(item.nodeId);
-                        }}
-                        className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
-                          item.level === "fail"
-                            ? "border-rose-500/40 bg-rose-500/10 text-rose-100"
-                            : item.level === "warn"
-                              ? "border-amber-400/40 bg-amber-500/10 text-amber-100"
-                              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-xs uppercase tracking-widest">
-                          <span>{item.level}</span>
-                          {item.code ? <span className="text-xs text-slate-200">{item.code}</span> : null}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-100">{item.message}</div>
-                        <div className="mt-1 text-xs text-slate-300">
-                          {item.file ?? "Unknown file"}
-                          {item.range
-                            ? ` · ${item.range.start.line}:${item.range.start.column}-${item.range.end.line}:${item.range.end.column}`
-                            : item.location
-                              ? ` · ${item.location}`
-                              : ""}
-                        </div>
-                        {item.excerpt ? (
-                          <pre className="mt-2 rounded-lg bg-slate-950/60 p-2 text-xs text-slate-200">
-                            <div>
-                              {item.excerpt.line} | {item.excerpt.text}
-                            </div>
-                            <div>
-                              {" ".repeat(String(item.excerpt.line).length)} | {item.excerpt.caret}
-                            </div>
-                          </pre>
-                        ) : null}
-                        {item.suggestion ? (
-                          <div className="mt-2 text-xs text-slate-300">Suggestion: {item.suggestion}</div>
-                        ) : null}
-                      </button>
-                    ))}
+            <div className="topbar-right">
+              <button className="btn btn-ghost" onClick={() => setPaletteOpen(true)}>
+                Commands
+              </button>
+              <div className={`status-pill status-${saveStatus}`}>{renderSaveStatus(saveStatus, sourceDirty)}</div>
+            </div>
+          </header>
+
+          <main className="editor-body">
+            <section className="editor-panel outline-panel">
+              <div className="panel-header">
+                <div className="panel-title">Outline</div>
+                <button className="btn btn-ghost" onClick={() => setAssetPanelOpen((open) => !open)}>
+                  {assetPanelOpen ? "Hide Assets" : "Assets"}
+                </button>
+              </div>
+              <div className="panel-body scroll">
+                <OutlineTree nodes={outline} selectedId={selectedId} onSelect={setSelectedId} />
+              </div>
+            </section>
+
+            <section className="editor-panel preview-panel">
+              <div className="panel-header">
+                <div className="panel-title">Preview</div>
+                <div className="panel-actions">
+                  <button className={`btn btn-ghost ${debugSlots ? "is-active" : ""}`} onClick={() => setDebugSlots((prev) => !prev)}>
+                    Debug
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => setActiveTab(activeTab === "preview" ? "source" : "preview")}>
+                    {activeTab === "preview" ? "Source" : "Preview"}
+                  </button>
+                </div>
+              </div>
+              <div className="panel-body preview-body">
+                {activeTab === "preview" ? (
+                  <div className="preview-wrap" ref={previewWrapRef}>
+                    <iframe
+                      ref={previewFrameRef}
+                      title="Flux preview"
+                      src={previewSrc}
+                      sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
+                      onLoad={handlePreviewLoad}
+                    />
                   </div>
                 ) : (
-                  <div className="text-sm text-slate-400">No diagnostics reported for this document.</div>
-                )
-              ) : (
-                <div className="text-sm text-slate-400">Toggle to view diagnostics details.</div>
-              )}
+                  <div className="source-tab">
+                    <div className="source-toolbar">
+                      <span className="source-label">Source</span>
+                      <button className="btn" onClick={handleApplySource} disabled={!sourceDirty || isApplying}>
+                        Apply
+                      </button>
+                    </div>
+                    <MonacoEditor
+                      height="100%"
+                      language="plaintext"
+                      value={sourceDraft}
+                      onChange={(value) => setSourceDraft(value ?? "")}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        wordWrap: "on",
+                        scrollBeyondLastLine: false,
+                      }}
+                      onMount={(editor, monacoInstance) => {
+                        monacoRef.current = monacoInstance;
+                        monacoEditorRef.current = editor;
+                        updateMonacoMarkers();
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="editor-panel inspector-panel">
+              <div className="panel-header">
+                <div className="panel-title">Inspector</div>
+                <div className="panel-actions">
+                  <button className="btn btn-ghost" onClick={() => setPaletteOpen(true)}>
+                    Palette
+                  </button>
+                </div>
+              </div>
+              <div className="panel-body scroll">
+                {selectedNode ? (
+                  <div className="inspector-content">
+                    <div className="inspector-block">
+                      <div className="inspector-label">Selection</div>
+                      <div className="inspector-title">{labelMap.get(selectedNode.id) ?? selectedNode.id}</div>
+                      <div className="inspector-meta">
+                        {selectedNode.kind} · {selectedNode.id}
+                      </div>
+                    </div>
+
+                    {activeTextNode ? (
+                      <div className="inspector-block">
+                        <div className="inspector-label">Rich Text</div>
+                        <RichTextEditor
+                          node={activeTextNode}
+                          existingIds={existingIds}
+                          onUpdate={debouncedRichTextUpdate}
+                          onInlineSlotSelect={(id) => {
+                            if (id) {
+                              setSelectedId(id);
+                            }
+                          }}
+                          onReady={(editor) => {
+                            richEditorRef.current = editor;
+                          }}
+                          highlightQuery={findOpen ? findQuery : undefined}
+                        />
+                      </div>
+                    ) : null}
+
+                    {selectedNode.kind === "inline_slot" ? (
+                      <InlineSlotInspector node={selectedNode} onChange={handleInlineSlotUpdate} />
+                    ) : null}
+
+                    {selectedNode.kind === "figure" ? (
+                      <div className="inspector-block">
+                        <div className="inspector-label">Figure</div>
+                        <div className="inspector-meta">Drop an asset onto the figure in the preview or outline.</div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="inspector-empty">Select a node to inspect properties.</div>
+                )}
+              </div>
+            </section>
+
+            {assetPanelOpen ? (
+              <section className="editor-panel assets-panel">
+                <div className="panel-header">
+                  <div className="panel-title">Asset Bank</div>
+                </div>
+                <div className="panel-body scroll">
+                  <AssetBrowser assets={doc?.assetsIndex ?? []} />
+                </div>
+              </section>
+            ) : null}
+          </main>
+
+          <footer className="editor-statusbar">
+            <div className="status-left">
+              <span className={`status-pill status-${saveStatus}`}>{renderSaveStatus(saveStatus, sourceDirty)}</span>
+              {doc?.docPath ? <span className="status-path">{doc.docPath}</span> : null}
             </div>
-          </section>
-        </div>
-      </main>
+            <div className="status-right">
+              <span>Diagnostics</span>
+              <span className="diag pass">Pass {diagnosticsSummary.pass}</span>
+              <span className="diag warn">Warn {diagnosticsSummary.warn}</span>
+              <span className="diag fail">Fail {diagnosticsSummary.fail}</span>
+            </div>
+          </footer>
 
-      <footer className="border-t border-slate-800/80 bg-slate-950/80 px-4 py-3 text-xs text-slate-300">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-slate-400">Status</span>
-            <span className={statusClass}>{statusLabel}</span>
-            {docPath ? <span className="text-slate-500">{truncateMiddle(docPath, 64)}</span> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-slate-400">
-            <span>Diagnostics</span>
-            <span className="text-emerald-300">Pass {diagnosticsSummary.pass}</span>
-            <span className="text-amber-300">Warn {diagnosticsSummary.warn}</span>
-            <span className="text-rose-300">Fail {diagnosticsSummary.fail}</span>
-          </div>
-        </div>
-      </footer>
+          {toast ? <div className={`toast toast-${toast.kind}`}>{toast.message}</div> : null}
 
-      {toast ? (
-        <div className="pointer-events-none fixed bottom-20 right-6 z-40 animate-fade-up">
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${
-              toast.kind === "success"
-                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-100"
-                : toast.kind === "error"
-                  ? "border-rose-400/60 bg-rose-500/10 text-rose-100"
-                  : "border-slate-700/80 bg-slate-900/80 text-slate-200"
-            }`}
-          >
-            {toast.message}
-          </div>
+          <CommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            insertItems={commandItems.insertItems}
+            wrapItems={commandItems.wrapItems}
+            headingItems={commandItems.headingItems}
+            utilityItems={commandItems.utilityItems}
+          />
         </div>
-      ) : null}
 
-      <FigureModal
-        open={figureModalOpen}
-        onClose={() => setFigureModalOpen(false)}
-        value={figureForm}
-        onChange={setFigureForm}
-        onSubmit={handleSubmitFigure}
-      />
+        <DragOverlay>
+          {draggingAsset ? (
+            <div className="asset-card drag-overlay">
+              <div className="asset-thumb" style={{ backgroundImage: `url(${assetPreviewUrl(draggingAsset)})` }} />
+              <div className="asset-title">{draggingAsset.name}</div>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
@@ -784,55 +773,55 @@ export default function EditorApp() {
 function OutlineTree({
   nodes,
   selectedId,
-  onSelect
+  onSelect,
 }: {
   nodes: OutlineNode[];
   selectedId?: string | null;
-  onSelect: (node: OutlineNode) => void;
+  onSelect: (id: string) => void;
 }) {
-  if (!nodes.length) {
-    return <div className="text-xs text-slate-500">No outline data available.</div>;
-  }
-
+  if (!nodes.length) return <div className="empty">No outline data.</div>;
   return (
-    <div className="space-y-1">
+    <div className="outline-tree">
       {nodes.map((node) => (
-        <OutlineNodeItem key={node.id} node={node} depth={0} selectedId={selectedId} onSelect={onSelect} />
+        <OutlineItem key={node.id} node={node} depth={0} selectedId={selectedId} onSelect={onSelect} />
       ))}
     </div>
   );
 }
 
-function OutlineNodeItem({
+function OutlineItem({
   node,
   depth,
   selectedId,
-  onSelect
+  onSelect,
 }: {
   node: OutlineNode;
   depth: number;
   selectedId?: string | null;
-  onSelect: (node: OutlineNode) => void;
+  onSelect: (id: string) => void;
 }) {
+  const droppable = useDroppable({
+    id: `outline:${node.id}`,
+    data: { type: "outline-drop", nodeId: node.id },
+    disabled: node.kind !== "figure" && node.kind !== "slot" && node.kind !== "image",
+  });
   const isSelected = selectedId === node.id;
-
   return (
-    <div>
+    <div className="outline-item">
       <button
         type="button"
-        className={`flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs transition ${
-          isSelected ? "bg-cyan-500/20 text-cyan-100" : "text-slate-300 hover:bg-slate-800/60"
-        }`}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        onClick={() => onSelect(node)}
+        ref={droppable.setNodeRef}
+        className={`outline-btn ${isSelected ? "is-selected" : ""} ${droppable.isOver ? "is-over" : ""}`}
+        style={{ paddingLeft: `${depth * 12 + 12}px` }}
+        onClick={() => onSelect(node.id)}
       >
-        <span className="text-[10px] uppercase tracking-widest text-slate-500">{node.kind}</span>
-        <span className="truncate text-sm text-slate-100">{node.label}</span>
+        <span className="outline-kind">{node.kind}</span>
+        <span className="outline-label">{node.label}</span>
       </button>
       {node.children.length ? (
-        <div className="mt-1 space-y-1">
+        <div className="outline-children">
           {node.children.map((child) => (
-            <OutlineNodeItem
+            <OutlineItem
               key={child.id}
               node={child}
               depth={depth + 1}
@@ -846,122 +835,384 @@ function OutlineNodeItem({
   );
 }
 
-function FigureFields({
-  value,
-  onChange,
-  disabled
-}: {
-  value: FigureFormState;
-  onChange: (next: FigureFormState) => void;
-  disabled?: boolean;
-}) {
+function AssetBrowser({ assets }: { assets: AssetItem[] }) {
+  const [query, setQuery] = useState("");
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [view, setView] = useState<"grid" | "list">("grid");
+
+  const tags = useMemo(() => {
+    const set = new Set<string>();
+    assets.forEach((asset) => asset.tags.forEach((tag) => set.add(tag)));
+    return Array.from(set).sort();
+  }, [assets]);
+
+  const filtered = useMemo(() => {
+    let results = assets;
+    if (query.trim()) {
+      results = matchSorter(results, query.trim(), { keys: ["name", "path", "kind", "tags", "bankName"] });
+    }
+    if (activeTags.length) {
+      results = results.filter((asset) => activeTags.every((tag) => asset.tags.includes(tag)));
+    }
+    return results;
+  }, [assets, query, activeTags]);
+
   return (
-    <div className={`space-y-3 ${disabled ? "opacity-60" : ""}`}>
-      <div>
-        <label className="text-xs uppercase tracking-widest text-slate-500">Bank name</label>
+    <div className="asset-browser">
+      <div className="asset-controls">
         <input
-          className="input mt-1"
-          value={value.bankName}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...value, bankName: event.target.value })}
-          placeholder="hero-assets"
+          className="input"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search assets…"
         />
-      </div>
-      <div>
-        <label className="text-xs uppercase tracking-widest text-slate-500">Tags</label>
-        <input
-          className="input mt-1"
-          value={value.tags}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...value, tags: event.target.value })}
-          placeholder="cover, poster, alt"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs uppercase tracking-widest text-slate-500">Reserve</label>
-          <select
-            className="select mt-1"
-            value={value.reserve}
-            disabled={disabled}
-            onChange={(event) => onChange({ ...value, reserve: event.target.value })}
-          >
-            {FIGURE_RESERVES.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs uppercase tracking-widest text-slate-500">Fit</label>
-          <select
-            className="select mt-1"
-            value={value.fit}
-            disabled={disabled}
-            onChange={(event) => onChange({ ...value, fit: event.target.value })}
-          >
-            {FIGURE_FITS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+        <div className="asset-view-toggle">
+          <button className={`btn btn-ghost ${view === "grid" ? "is-active" : ""}`} onClick={() => setView("grid")}>
+            Grid
+          </button>
+          <button className={`btn btn-ghost ${view === "list" ? "is-active" : ""}`} onClick={() => setView("list")}>
+            List
+          </button>
         </div>
       </div>
-      <div>
-        <label className="text-xs uppercase tracking-widest text-slate-500">Caption</label>
-        <textarea
-          className="textarea mt-1 min-h-[80px]"
-          value={value.caption}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...value, caption: event.target.value })}
-          placeholder="Optional caption text"
-        />
+      {tags.length ? (
+        <div className="asset-tags">
+          {tags.slice(0, 10).map((tag) => (
+            <button
+              key={tag}
+              className={`tag-chip ${activeTags.includes(tag) ? "is-active" : ""}`}
+              onClick={() =>
+                setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+              }
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className={`asset-list ${view}`}>
+        {filtered.map((asset) => (
+          <AssetCard key={asset.id} asset={asset} view={view} />
+        ))}
       </div>
     </div>
   );
 }
 
-function FigureModal({
-  open,
-  onClose,
-  value,
-  onChange,
-  onSubmit
-}: {
-  open: boolean;
-  onClose: () => void;
-  value: FigureFormState;
-  onChange: (next: FigureFormState) => void;
-  onSubmit: () => void;
-}) {
-  if (!open) return null;
+function AssetCard({ asset, view }: { asset: AssetItem; view: "grid" | "list" }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: asset.id,
+    data: { asset },
+  });
+  const style = transform
+    ? {
+        transform: CSS.Translate.toString(transform),
+      }
+    : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur">
-      <div className="panel w-full max-w-lg animate-fade-up">
-        <div className="panel-header">
-          <div>
-            <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Insert figure</div>
-            <div className="text-sm text-slate-200">Configure figure options before inserting.</div>
-          </div>
-          <button className="btn btn-muted" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="panel-body space-y-4">
-          <FigureFields value={value} onChange={onChange} />
-          <div className="flex items-center justify-end gap-2">
-            <button className="btn btn-muted" onClick={onClose}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" onClick={onSubmit}>
-              Insert figure
-            </button>
-          </div>
-        </div>
+    <div
+      ref={setNodeRef}
+      className={`asset-card ${view} ${isDragging ? "is-dragging" : ""}`}
+      style={style}
+      {...listeners}
+      {...attributes}
+    >
+      <div className="asset-thumb" style={{ backgroundImage: `url(${assetPreviewUrl(asset)})` }} />
+      <div className="asset-meta">
+        <div className="asset-title">{asset.name}</div>
+        <div className="asset-path">{asset.path}</div>
+        {asset.bankName ? <div className="asset-bank">{asset.bankName}</div> : null}
       </div>
     </div>
   );
+}
+
+function InlineSlotInspector({ node, onChange }: { node: DocumentNode; onChange: (payload: any) => void }) {
+  const slotText = node.children?.find((child) => child.kind === "text");
+  const [text, setText] = useState(getLiteralString(slotText?.props?.content) ?? "");
+  const [reserve, setReserve] = useState(getLiteralString(node.props?.reserve) ?? "fixedWidth(8, ch)");
+  const [fit, setFit] = useState(getLiteralString(node.props?.fit) ?? "ellipsis");
+  const [refresh, setRefresh] = useState(node.refresh?.kind ?? "onLoad");
+
+  useEffect(() => {
+    setText(getLiteralString(slotText?.props?.content) ?? "");
+  }, [slotText?.props]);
+
+  useEffect(() => {
+    setReserve(getLiteralString(node.props?.reserve) ?? "fixedWidth(8, ch)");
+    setFit(getLiteralString(node.props?.fit) ?? "ellipsis");
+    setRefresh(node.refresh?.kind ?? "onLoad");
+  }, [node.id, node.props, node.refresh]);
+
+  return (
+    <div className="inspector-block">
+      <div className="inspector-label">Inline Slot</div>
+      <label className="field">
+        Content
+        <input
+          className="input"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={() => onChange({ text })}
+        />
+      </label>
+      <label className="field">
+        Reserve
+        <input
+          className="input"
+          value={reserve}
+          onChange={(event) => setReserve(event.target.value)}
+          onBlur={() => onChange({ reserve })}
+        />
+      </label>
+      <label className="field">
+        Fit
+        <select
+          className="select"
+          value={fit}
+          onChange={(event) => {
+            setFit(event.target.value);
+            onChange({ fit: event.target.value });
+          }}
+        >
+          {"clip,ellipsis,shrink,scaleDown".split(",").map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        Refresh
+        <select
+          className="select"
+          value={refresh}
+          onChange={(event) => {
+            setRefresh(event.target.value);
+            onChange({ refresh: parseRefresh(event.target.value) });
+          }}
+        >
+          <option value="onLoad">On load</option>
+          <option value="onDocstep">Docstep</option>
+          <option value="never">Never</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function CommandPalette({
+  open,
+  onOpenChange,
+  insertItems,
+  wrapItems,
+  headingItems,
+  utilityItems,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  insertItems: { id: string; label: string; action: () => void }[];
+  wrapItems: { id: string; label: string; action: () => void }[];
+  headingItems: { id: string; label: string; action: () => void }[];
+  utilityItems: { id: string; label: string; action: () => void }[];
+}) {
+  return (
+    <Command.Dialog className="command-dialog" open={open} onOpenChange={onOpenChange}>
+      <Command.Input className="command-input" placeholder="Type a command…" />
+      <Command.List className="command-list">
+        <Command.Group heading="Insert">
+          {insertItems.map((item) => (
+            <Command.Item
+              key={item.id}
+              onSelect={() => {
+                item.action();
+                onOpenChange(false);
+              }}
+            >
+              {item.label}
+            </Command.Item>
+          ))}
+        </Command.Group>
+        <Command.Group heading="Wrap">
+          {wrapItems.map((item) => (
+            <Command.Item
+              key={item.id}
+              onSelect={() => {
+                item.action();
+                onOpenChange(false);
+              }}
+            >
+              {item.label}
+            </Command.Item>
+          ))}
+        </Command.Group>
+        {headingItems.length ? (
+          <Command.Group heading="Go to">
+            {headingItems.map((item) => (
+              <Command.Item
+                key={item.id}
+                onSelect={() => {
+                  item.action();
+                  onOpenChange(false);
+                }}
+              >
+                {item.label}
+              </Command.Item>
+            ))}
+          </Command.Group>
+        ) : null}
+        <Command.Group heading="Utilities">
+          {utilityItems.map((item) => (
+            <Command.Item
+              key={item.id}
+              onSelect={() => {
+                item.action();
+                onOpenChange(false);
+              }}
+            >
+              {item.label}
+            </Command.Item>
+          ))}
+        </Command.Group>
+      </Command.List>
+    </Command.Dialog>
+  );
+}
+
+function useDebouncedCallback<T extends (...args: any[]) => void>(callback: T, delay: number) {
+  const timeoutRef = useRef<number | null>(null);
+  return useCallback(
+    (...args: Parameters<T>) => {
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => {
+        callback(...args);
+      }, delay);
+    },
+    [callback, delay],
+  );
+}
+
+function renderSaveStatus(status: "idle" | "saving" | "saved" | "error", dirty: boolean) {
+  if (status === "saving") return "Saving…";
+  if (status === "error") return "Error";
+  if (dirty) return "Unsaved";
+  return "Saved ✓";
+}
+
+function assetPreviewUrl(asset: AssetItem) {
+  if (asset.id) return `/assets/${encodeURIComponent(asset.id)}`;
+  if (asset.path) return `/asset?src=${encodeURIComponent(asset.path)}`;
+  return "";
+}
+
+function buildPreviewSrc(basePath?: string, revision?: number): string {
+  if (typeof window === "undefined") return basePath ?? "/preview";
+  const url = new URL(basePath ?? "/preview", window.location.origin);
+  const file = getFileParam();
+  if (file) url.searchParams.set("file", file);
+  if (typeof revision === "number") url.searchParams.set("rev", String(revision));
+  return `${url.pathname}${url.search}`;
+}
+
+function getFileParam(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("file");
+}
+
+function parseRefresh(value: string): RefreshPolicy | undefined {
+  if (value === "onDocstep") return { kind: "onDocstep" };
+  if (value === "never") return { kind: "never" };
+  return { kind: "onLoad" };
+}
+
+function nextId(prefix: string, ids: Set<string>) {
+  let n = 1;
+  let candidate = `${prefix}${n}`;
+  while (ids.has(candidate)) {
+    n += 1;
+    candidate = `${prefix}${n}`;
+  }
+  ids.add(candidate);
+  return candidate;
+}
+
+function buildAssetAssignment(
+  doc: any,
+  index: Map<string, any>,
+  targetId: string,
+  asset: AssetItem,
+  ids: Set<string>,
+): { id: string; node: DocumentNode } | null {
+  const start = index.get(targetId);
+  if (!start) return null;
+  let entry = start;
+  while (entry && !["figure", "slot", "image"].includes(entry.node.kind)) {
+    entry = entry.parentId ? index.get(entry.parentId) : null;
+  }
+  if (!entry) return null;
+
+  if (entry.node.kind === "image") {
+    const updated: DocumentNode = {
+      ...entry.node,
+      props: { ...(entry.node.props ?? {}), src: { kind: "LiteralValue", value: asset.path } },
+    };
+    return { id: entry.node.id, node: updated };
+  }
+
+  const slotNode = entry.node.kind === "slot" ? entry.node : findFirstChild(entry.node, "slot");
+  if (!slotNode) return null;
+
+  const imageNode = findFirstChild(slotNode, "image");
+  if (imageNode) {
+    const updated: DocumentNode = {
+      ...imageNode,
+      props: { ...(imageNode.props ?? {}), src: { kind: "LiteralValue", value: asset.path } },
+    };
+    return { id: imageNode.id, node: updated };
+  }
+
+  const nextImage: DocumentNode = {
+    id: nextId("image", ids),
+    kind: "image",
+    props: { src: { kind: "LiteralValue", value: asset.path } },
+    children: [],
+  };
+
+  const nextSlot: DocumentNode = {
+    ...slotNode,
+    children: [nextImage],
+  };
+  return { id: slotNode.id, node: nextSlot };
+}
+
+function findFirstChild(node: DocumentNode, kind: string): DocumentNode | null {
+  for (const child of node.children ?? []) {
+    if (child.kind === kind) return child;
+    const nested = findFirstChild(child, kind);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function dropAssetOnPreview(
+  frame: HTMLIFrameElement | null,
+  wrap: HTMLDivElement | null,
+  point: { x: number; y: number },
+  resolveId = false,
+): string | boolean {
+  if (!frame || !wrap) return false;
+  const rect = wrap.getBoundingClientRect();
+  if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return false;
+  const frameRect = frame.getBoundingClientRect();
+  const relX = point.x - frameRect.left;
+  const relY = point.y - frameRect.top;
+  const doc = frame.contentWindow?.document;
+  if (!doc) return false;
+  const target = doc.elementFromPoint(relX, relY) as HTMLElement | null;
+  const fluxEl = target?.closest?.("[data-flux-node]") as HTMLElement | null;
+  if (!fluxEl) return false;
+  const nodeId = fluxEl.getAttribute("data-flux-node");
+  if (resolveId) return nodeId ?? false;
+  return Boolean(nodeId);
 }

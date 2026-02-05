@@ -4,13 +4,18 @@ import {
   buildAddFigureTransform,
   buildAddParagraphTransform,
   buildAddSectionTransform,
+  buildAddSlotTransform,
   buildAddTableTransform,
   buildSetTextTransform
 } from "./transforms";
 
 describe("transform builders", () => {
   it("builds addSection transform", () => {
-    expect(buildAddSectionTransform()).toEqual({ op: "addSection", args: {} });
+    expect(buildAddSectionTransform()).toEqual({ op: "addSection", args: { heading: undefined, noHeading: undefined } });
+    expect(buildAddSectionTransform({ heading: "Intro", noHeading: true })).toEqual({
+      op: "addSection",
+      args: { heading: "Intro", noHeading: true }
+    });
   });
 
   it("builds addParagraph transform", () => {
@@ -42,6 +47,7 @@ describe("transform builders", () => {
       args: { text: "Heads up", tone: "warning" }
     });
     expect(buildAddTableTransform()).toEqual({ op: "addTable", args: {} });
+    expect(buildAddSlotTransform()).toEqual({ op: "addSlot", args: {} });
   });
 
   it("builds setText transform", () => {

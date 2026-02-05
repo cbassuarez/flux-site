@@ -5,6 +5,8 @@ export type EditState = {
   capabilities?: Record<string, unknown>;
   previewPath?: string;
   outline?: unknown;
+  assets?: unknown;
+  assetsBanks?: unknown;
   [key: string]: unknown;
 };
 
@@ -58,6 +60,17 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 
 export async function fetchEditState(): Promise<EditState> {
   return fetchJson<EditState>(withFileParam("/api/edit/state"));
+}
+
+export async function fetchEditSource(): Promise<{
+  ok?: boolean;
+  source?: string;
+  diagnostics?: unknown;
+  revision?: number;
+  lastValidRevision?: number;
+  docPath?: string;
+}> {
+  return fetchJson(withFileParam("/api/edit/source"));
 }
 
 export async function fetchEditOutline(): Promise<unknown | null> {

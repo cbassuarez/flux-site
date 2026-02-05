@@ -13,14 +13,25 @@ export type SetTextArgs = {
   text: string;
 };
 
+export type AddSectionArgs = {
+  heading?: string;
+  noHeading?: boolean;
+};
+
 function cleanString(value?: string): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length ? trimmed : undefined;
 }
 
-export function buildAddSectionTransform(): TransformRequest {
-  return { op: "addSection", args: {} };
+export function buildAddSectionTransform(args: AddSectionArgs = {}): TransformRequest {
+  return {
+    op: "addSection",
+    args: {
+      heading: cleanString(args.heading),
+      noHeading: typeof args.noHeading === "boolean" ? args.noHeading : undefined,
+    },
+  };
 }
 
 export function buildAddParagraphTransform(text?: string): TransformRequest {
@@ -56,6 +67,10 @@ export function buildAddCalloutTransform(text?: string, tone?: string): Transfor
 
 export function buildAddTableTransform(): TransformRequest {
   return { op: "addTable", args: {} };
+}
+
+export function buildAddSlotTransform(): TransformRequest {
+  return { op: "addSlot", args: {} };
 }
 
 export function buildSetTextTransform(args: SetTextArgs): TransformRequest {
