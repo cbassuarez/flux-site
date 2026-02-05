@@ -20,9 +20,9 @@ export function HeroPacket() {
                 Deterministic, PDF-like documents that evolve docstep by docstep.
               </h1>
               <p className="max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base">
-                Flux keeps layout locked while inline and figure slots update in a
-                predictable sequence. The packet below simulates a live viewer
-                with steady, no-reflow pagination.
+                Flux keeps layout locked while inline parameters and grid slots update
+                deterministically. The packet below is a typeset view of a real
+                Flux document — click to turn pages.
               </p>
             </div>
 

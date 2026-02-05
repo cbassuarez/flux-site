@@ -22,3 +22,19 @@ export function seededIndex(
   const rand = mulberry32(base)();
   return Math.floor(rand * length);
 }
+
+export function seededFloat(
+  seed: number,
+  docstep: number,
+  min: number,
+  max: number,
+  offset = 0,
+) {
+  const clampedMin = Number.isFinite(min) ? min : 0;
+  const clampedMax = Number.isFinite(max) ? max : 1;
+  const base =
+    (Math.imul(seed + offset, 0x27d4eb2d) ^
+      Math.imul(docstep + offset, 0x165667b1)) >>> 0;
+  const rand = mulberry32(base)();
+  return clampedMin + (clampedMax - clampedMin) * rand;
+}
