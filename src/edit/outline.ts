@@ -2,8 +2,8 @@ import type { EditState } from "./api";
 
 export type OutlineNode = {
   id: string;
-  type: string;
-  title: string;
+  kind: string;
+  label: string;
   children: OutlineNode[];
   data?: unknown;
 };
@@ -14,12 +14,12 @@ function normalizeId(value: unknown, fallback: string): string {
   return fallback;
 }
 
-function normalizeTitle(value: unknown, fallback: string): string {
+function normalizeLabel(value: unknown, fallback: string): string {
   if (typeof value === "string" && value.trim()) return value;
   return fallback;
 }
 
-function normalizeType(value: unknown, fallback: string): string {
+function normalizeKind(value: unknown, fallback: string): string {
   if (typeof value === "string" && value.trim()) return value;
   return fallback;
 }
@@ -34,16 +34,16 @@ function normalizeNode(node: unknown, index: number, seen: WeakSet<object>): Out
   seen.add(node as object);
 
   const record = node as Record<string, unknown>;
-  const type = normalizeType(record.type ?? record.kind ?? record.nodeType ?? record.role ?? record.tag, "node");
-  const id = normalizeId(record.id ?? record.uid ?? record.key ?? record.ref, `${type}-${index + 1}`);
-  const title = normalizeTitle(record.title ?? record.name ?? record.label ?? record.heading, `${type} ${index + 1}`);
+  const kind = normalizeKind(record.kind ?? record.type ?? record.nodeType ?? record.role ?? record.tag, "node");
+  const id = normalizeId(record.id ?? record.uid ?? record.key ?? record.ref, `${kind}-${index + 1}`);
+  const label = normalizeLabel(record.label ?? record.title ?? record.name ?? record.heading, `${kind} ${index + 1}`);
   const childrenSource =
     record.children ?? record.nodes ?? record.items ?? record.sections ?? record.figures ?? record.pages ?? record.blocks;
 
   return {
     id,
-    type,
-    title,
+    kind,
+    label,
     children: normalizeChildren(childrenSource, seen),
     data: record
   };
@@ -79,8 +79,8 @@ export function buildFallbackOutline(state?: EditState | null): OutlineNode[] {
     return [
       {
         id: "document",
-        type: "document",
-        title: "Document",
+        kind: "document",
+        label: "Document",
         children: []
       }
     ];
@@ -107,8 +107,8 @@ export function buildFallbackOutline(state?: EditState | null): OutlineNode[] {
   return [
     {
       id,
-      type: "document",
-      title,
+      kind: "document",
+      label: title,
       children: pages
     }
   ];

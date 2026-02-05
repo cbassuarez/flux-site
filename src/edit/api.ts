@@ -11,6 +11,8 @@ export type EditState = {
 export type TransformRequest = {
   op: string;
   args: Record<string, unknown>;
+  file?: string;
+  clientRevision?: number;
 };
 
 export class ApiError extends Error {
@@ -55,12 +57,12 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 }
 
 export async function fetchEditState(): Promise<EditState> {
-  return fetchJson<EditState>("/api/edit/state");
+  return fetchJson<EditState>(withFileParam("/api/edit/state"));
 }
 
 export async function fetchEditOutline(): Promise<unknown | null> {
   try {
-    return await fetchJson<unknown>("/api/edit/outline");
+    return await fetchJson<unknown>(withFileParam("/api/edit/outline"));
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return null;
@@ -69,12 +71,33 @@ export async function fetchEditOutline(): Promise<unknown | null> {
   }
 }
 
+export async function fetchEditNode(id: string): Promise<unknown> {
+  const url = withFileParam("/api/edit/node");
+  const fullUrl = url.includes("?") ? `${url}&id=${encodeURIComponent(id)}` : `${url}?id=${encodeURIComponent(id)}`;
+  return fetchJson<unknown>(fullUrl);
+}
+
 export async function postTransform(request: TransformRequest): Promise<unknown> {
+  const file = getFileParam();
+  const payload = file ? { ...request, file } : request;
   return fetchJson<unknown>("/api/edit/transform", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(request)
+    body: JSON.stringify(payload)
   });
+}
+
+function getFileParam(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("file");
+}
+
+function withFileParam(path: string): string {
+  const file = getFileParam();
+  if (!file || typeof window === "undefined") return path;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set("file", file);
+  return `${url.pathname}${url.search}`;
 }

@@ -8,6 +8,18 @@ export type DiagnosticItem = {
   level: "pass" | "warn" | "fail";
   message: string;
   code?: string;
+  file?: string;
+  range?: {
+    start: { line: number; column: number; offset?: number };
+    end: { line: number; column: number; offset?: number };
+  };
+  excerpt?: {
+    line: number;
+    text: string;
+    caret: string;
+  };
+  suggestion?: string;
+  nodeId?: string;
   location?: string;
   raw?: unknown;
 };
@@ -84,6 +96,16 @@ export function extractDiagnosticsItems(raw?: unknown): DiagnosticItem[] {
         (typeof record.description === "string" && record.description) ||
         `Diagnostic ${index + 1}`,
       code: typeof record.code === "string" ? record.code : typeof record.rule === "string" ? record.rule : undefined,
+      file:
+        typeof record.file === "string"
+          ? record.file
+          : typeof record.path === "string"
+            ? record.path
+            : undefined,
+      range: typeof record.range === "object" ? (record.range as DiagnosticItem["range"]) : undefined,
+      excerpt: typeof record.excerpt === "object" ? (record.excerpt as DiagnosticItem["excerpt"]) : undefined,
+      suggestion: typeof record.suggestion === "string" ? record.suggestion : undefined,
+      nodeId: typeof record.nodeId === "string" ? record.nodeId : undefined,
       location:
         typeof record.location === "string"
           ? record.location
