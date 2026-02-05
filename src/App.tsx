@@ -1,10 +1,11 @@
-import { Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import DocsPage from "./pages/DocsPage";
 import ToolingPage from "./pages/ToolingPage";
 import RoadmapPage from "./pages/RoadmapPage";
 import { Header } from "./components/Header";
 import EditorApp from "./edit/EditorApp";
+import EditLandingPage from "./pages/EditLandingPage";
 
 const isEditorBase = import.meta.env.BASE_URL.startsWith("/edit");
 
@@ -42,10 +43,11 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/edit/*" element={<EditorApp />} />
       <Route element={<SiteShell />}>
         <Route element={<DefaultLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/edit/*" element={<EditLandingPage />} />
+          <Route path="/editor" element={<Navigate to="/edit" replace />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/tooling" element={<ToolingPage />} />
           <Route path="/roadmap" element={<RoadmapPage />} />
