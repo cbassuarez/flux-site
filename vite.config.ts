@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173
     },
+    build: {
+      assetsDir: ""
+    },
     test: {
       environment: "jsdom",
       setupFiles: "./src/setupTests.ts",

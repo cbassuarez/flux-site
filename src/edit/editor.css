@@ -1,0 +1,102 @@
+.editor-root {
+  min-height: 100vh;
+  background-color: #0b0f17;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(14, 116, 144, 0.35), transparent 42%),
+    radial-gradient(circle at 82% 12%, rgba(56, 189, 248, 0.2), transparent 36%),
+    radial-gradient(circle at 50% 100%, rgba(15, 23, 42, 0.85), transparent 45%);
+  color: #e2e8f0;
+  font-family: "Space Grotesk", "IBM Plex Sans", "SF Pro Text", "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
+  color-scheme: dark;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-slate-800/80 bg-slate-900/70 shadow-[0_20px_60px_rgba(2,6,23,0.35)];
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between gap-3 border-b border-slate-800/80 px-4 py-3 text-sm text-slate-200;
+  }
+
+  .panel-body {
+    @apply px-4 py-3 text-sm text-slate-200;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/70 px-3 py-2 text-sm font-semibold text-slate-100 transition;
+  }
+
+  .btn:hover {
+    @apply border-slate-500/80 bg-slate-700/70;
+  }
+
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .btn-primary {
+    @apply border-cyan-400/70 bg-cyan-500/20 text-cyan-50;
+  }
+
+  .btn-primary:hover {
+    @apply bg-cyan-500/30;
+  }
+
+  .btn-muted {
+    @apply border-slate-700/70 bg-slate-900/60 text-slate-300;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400/70 focus:outline-none;
+  }
+
+  .select {
+    @apply w-full rounded-lg border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-400/70 focus:outline-none;
+  }
+
+  .textarea {
+    @apply w-full rounded-lg border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400/70 focus:outline-none;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border border-slate-700/80 bg-slate-800/60 px-2.5 py-0.5 text-[11px] uppercase tracking-widest text-slate-300;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.45s ease-out both;
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-soft-pulse {
+    animation: none;
+  }
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import "./editor.css";
 import {
   ApiError,
   fetchEditOutline,
@@ -323,7 +324,7 @@ export default function EditorApp() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-200">
+      <div className="editor-root flex min-h-screen items-center justify-center text-slate-200">
         <div className="panel w-[360px] animate-fade-up px-6 py-8 text-center">
           <div className="mx-auto mb-3 h-10 w-10 rounded-full border-2 border-slate-600 border-t-cyan-400/80 animate-soft-pulse" />
           <p className="text-sm text-slate-300">Loading editor state from the Flux viewer...</p>
@@ -335,7 +336,7 @@ export default function EditorApp() {
   if (error) {
     const message = error instanceof ApiError ? error.message : error.message;
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 text-slate-200">
+      <div className="editor-root flex min-h-screen items-center justify-center px-4 text-slate-200">
         <div className="panel w-full max-w-lg animate-fade-up p-6">
           <div className="mb-3 flex items-center justify-between">
             <span className="badge">Editor offline</span>
@@ -353,7 +354,7 @@ export default function EditorApp() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col text-slate-100">
+    <div className="editor-root flex min-h-screen flex-col text-slate-100">
       <header className="border-b border-slate-800/80 bg-slate-950/80 px-4 py-3 backdrop-blur">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
