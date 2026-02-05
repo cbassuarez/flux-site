@@ -1,7 +1,8 @@
 @import "../editor/theme/styles.css";
 
 .editor-root {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--editor-surface-app);
   color: var(--editor-text-fg);
   font-family: var(--editor-font-ui);
@@ -17,7 +18,8 @@
 }
 
 .editor-shell {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -153,6 +155,7 @@
   display: flex;
   gap: 0;
   padding: var(--editor-space-3);
+  overflow: hidden;
 }
 
 .editor-pane {

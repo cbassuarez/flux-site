@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
       port: 5173
     },
     build: {
-      assetsDir: ""
+      assetsDir: "",
+      sourcemap: true
     },
     test: {
       environment: "jsdom",

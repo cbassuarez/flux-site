@@ -200,6 +200,13 @@ export default function EditorApp() {
 
   const activeTextEntry = useMemo(() => {
     if (!selectedEntry || !doc?.index) return null;
+    if (selectedEntry.node.kind === "text") return selectedEntry;
+
+    const descendant = findFirstChild(selectedEntry.node, "text");
+    if (descendant) {
+      return doc.index.get(descendant.id) ?? null;
+    }
+
     let entry: typeof selectedEntry | null = selectedEntry;
     while (entry && entry.node.kind !== "text") {
       entry = entry.parentId ? doc.index.get(entry.parentId) ?? null : null;
