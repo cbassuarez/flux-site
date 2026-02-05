@@ -35,7 +35,15 @@ function CodePanel({
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
+    <span
+      className={[
+        "inline-flex items-center whitespace-nowrap",
+        "h-7 rounded-full",
+        "border border-slate-200 bg-white",
+        "px-3 text-[11px] font-semibold leading-none text-slate-700",
+        "shadow-sm",
+      ].join(" ")}
+    >
       {children}
     </span>
   );
@@ -171,7 +179,7 @@ so the same inputs always yield the same outputs.`;
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <div className="lg:col-span-7">
           <section id="overview" className="space-y-4 scroll-mt-24">
-            <div className="flex flex-wrap gap-2">
+             <div className="flex flex-wrap items-center gap-2 leading-none">
               <Chip>v0.2.0</Chip>
               <Chip>offline-first</Chip>
               <Chip>seeded</Chip>
