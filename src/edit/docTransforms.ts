@@ -8,6 +8,15 @@ export type InlineSlotUpdate = {
   refresh?: RefreshPolicy;
 };
 
+export type SlotUpdate = InlineSlotUpdate;
+
+export type ImageFrame = {
+  fit: "contain" | "cover";
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+};
+
 export function collectIds(doc: FluxDocument | null): Set<string> {
   const ids = new Set<string>();
   const visit = (node: DocumentNode) => {
@@ -88,37 +97,141 @@ export function insertTextSection(doc: FluxDocument): { doc: FluxDocument; newId
 }
 
 export function updateInlineSlot(doc: FluxDocument, slotId: string, update: InlineSlotUpdate): FluxDocument {
+  const ids = collectIds(doc);
   const next: FluxDocument = {
     ...doc,
     body: {
-      nodes: doc.body?.nodes ? doc.body.nodes.map((node) => updateNode(node, slotId, update)) : [],
+      nodes: doc.body?.nodes ? doc.body.nodes.map((node) => updateNode(node, slotId, update, ids)) : [],
     },
   };
   return next;
 }
 
-function updateNode(node: DocumentNode, slotId: string, update: InlineSlotUpdate): DocumentNode {
-  if (node.id === slotId && node.kind === "inline_slot") {
+export function updateSlot(doc: FluxDocument, slotId: string, update: SlotUpdate): FluxDocument {
+  const ids = collectIds(doc);
+  const next: FluxDocument = {
+    ...doc,
+    body: {
+      nodes: doc.body?.nodes ? doc.body.nodes.map((node) => updateNode(node, slotId, update, ids)) : [],
+    },
+  };
+  return next;
+}
+
+export function setImageFrame(doc: FluxDocument, nodeId: string, frame: ImageFrame): FluxDocument {
+  const next: FluxDocument = {
+    ...doc,
+    body: {
+      nodes: doc.body?.nodes
+        ? doc.body.nodes.map((node) => updateNodeFrame(node, nodeId, frame))
+        : [],
+    },
+  };
+  return next;
+}
+
+export function resetImageFrame(doc: FluxDocument, nodeId: string): FluxDocument {
+  const next: FluxDocument = {
+    ...doc,
+    body: {
+      nodes: doc.body?.nodes
+        ? doc.body.nodes.map((node) => updateNodeFrame(node, nodeId, null))
+        : [],
+    },
+  };
+  return next;
+}
+
+export function moveNode(doc: FluxDocument, nodeId: string, parentId: string, index: number): FluxDocument {
+  const next: FluxDocument = {
+    ...doc,
+    body: {
+      nodes: doc.body?.nodes
+        ? doc.body.nodes.map((node) => reorderWithin(node, nodeId, parentId, index))
+        : [],
+    },
+  };
+  return next;
+}
+
+function updateNode(
+  node: DocumentNode,
+  slotId: string,
+  update: InlineSlotUpdate,
+  ids: Set<string>,
+): DocumentNode {
+  if (node.id === slotId && (node.kind === "inline_slot" || node.kind === "slot")) {
     const props: Record<string, NodePropValue> = { ...(node.props ?? {}) };
     if (update.reserve !== undefined) props.reserve = { kind: "LiteralValue", value: update.reserve };
     if (update.fit !== undefined) props.fit = { kind: "LiteralValue", value: update.fit };
-    const children = node.children?.map((child) => {
-      if (child.kind !== "text") return child;
-      const content = update.text ?? getLiteralString(child.props?.content) ?? "";
-      return {
-        ...child,
-        props: { ...(child.props ?? {}), content: { kind: "LiteralValue", value: content } },
-      };
-    });
+
+    let children = node.children ?? [];
+    if (update.text !== undefined) {
+      const sanitized = sanitizeSlotText(update.text);
+      const textChild = children.find((child) => child.kind === "text");
+      const textId = textChild?.id ?? nextId("slotText", ids);
+      children = [
+        {
+          id: textId,
+          kind: "text",
+          props: { content: { kind: "LiteralValue", value: sanitized } },
+          children: [],
+        },
+      ];
+    }
+
     return {
       ...node,
       props,
       refresh: update.refresh ?? node.refresh,
-      children: children ?? node.children,
+      children,
     };
   }
 
   if (!node.children?.length) return node;
-  const nextChildren = node.children.map((child) => updateNode(child, slotId, update));
+  const nextChildren = node.children.map((child) => updateNode(child, slotId, update, ids));
   return { ...node, children: nextChildren };
+}
+
+function updateNodeFrame(node: DocumentNode, nodeId: string, frame: ImageFrame | null): DocumentNode {
+  if (node.id === nodeId) {
+    const props: Record<string, NodePropValue> = { ...(node.props ?? {}) };
+    if (frame) {
+      props.frame = { kind: "LiteralValue", value: frame };
+    } else if ("frame" in props) {
+      delete props.frame;
+    }
+    return { ...node, props };
+  }
+  if (!node.children?.length) return node;
+  return { ...node, children: node.children.map((child) => updateNodeFrame(child, nodeId, frame)) };
+}
+
+function reorderWithin(node: DocumentNode, nodeId: string, parentId: string, index: number): DocumentNode {
+  if (node.id === parentId) {
+    const children = [...(node.children ?? [])];
+    const from = children.findIndex((child) => child.id === nodeId);
+    if (from < 0) return node;
+    const [moving] = children.splice(from, 1);
+    const clamped = Math.max(0, Math.min(index, children.length));
+    children.splice(clamped, 0, moving);
+    return { ...node, children };
+  }
+  if (!node.children?.length) return node;
+  return { ...node, children: node.children.map((child) => reorderWithin(child, nodeId, parentId, index)) };
+}
+
+function sanitizeSlotText(value: string): string {
+  return value.replace(/[\\r\\n]+/g, " ");
+}
+
+function nextId(prefix: string, ids: Set<string>): string {
+  let n = 1;
+  let candidate = `${prefix}${n}`;
+  while (ids.has(candidate)) {
+    n += 1;
+    candidate = `${prefix}${n}`;
+  }
+  ids.add(candidate);
+  return candidate;
 }

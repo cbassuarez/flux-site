@@ -486,6 +486,10 @@
   border: 1px dashed var(--editor-accent);
 }
 
+.outline-btn.is-dragging {
+  opacity: 0.6;
+}
+
 .outline-kind {
   font-size: 10px;
   text-transform: uppercase;
@@ -513,6 +517,15 @@
   gap: 6px;
   padding: var(--editor-space-2) 0 var(--editor-space-3);
   border-bottom: 1px solid var(--editor-line-muted);
+}
+
+.inspector-alert {
+  padding: 8px 10px;
+  border-radius: var(--editor-radius-sm);
+  border: 1px solid rgba(215, 116, 116, 0.6);
+  background: rgba(215, 116, 116, 0.1);
+  font-size: 12px;
+  color: var(--editor-text-fg);
 }
 
 .inspector-title {
@@ -553,6 +566,38 @@
   gap: var(--editor-space-2);
 }
 
+.frame-section {
+  border-top: 1px solid var(--editor-line-muted);
+  padding-top: var(--editor-space-2);
+}
+
+.frame-toolbar {
+  display: flex;
+  gap: 6px;
+}
+
+.frame-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.frame-nudge {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.frame-nudge-row {
+  display: flex;
+  gap: 6px;
+}
+
+.frame-value {
+  font-size: 11px;
+  color: var(--editor-text-muted);
+}
+
 .section-title {
   font-size: 11px;
   text-transform: uppercase;
@@ -570,6 +615,11 @@
   gap: 4px;
   font-size: 12px;
   color: var(--editor-text-muted);
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--editor-accent);
 }
 
 .rich-text-editor {
@@ -745,6 +795,16 @@
 
 .drag-overlay {
   opacity: 0.8;
+}
+
+.outline-drag-overlay {
+  padding: 6px 10px;
+  border-radius: var(--editor-radius-sm);
+  border: 1px solid var(--editor-line-hairline);
+  background: var(--editor-surface-panel);
+  font-size: 11px;
+  color: var(--editor-text-fg);
+  box-shadow: var(--editor-shadow-stack);
 }
 
 .source-body {

@@ -21,6 +21,11 @@ export function getLiteralString(value: NodePropValue | undefined): string | nul
   return typeof value.value === "string" ? value.value : null;
 }
 
+export function getLiteralValue(value: NodePropValue | undefined): unknown | null {
+  if (!value || value.kind !== "LiteralValue") return null;
+  return value.value;
+}
+
 export function extractPlainText(node: DocumentNode): string {
   const pieces: string[] = [];
   const content = getLiteralString(node.props?.content);
