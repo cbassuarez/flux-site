@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     plugins: [react()],
-    base: env.VITE_BASE ?? "/edit/",
+    base: env.VITE_BASE ?? "/",
     server: {
       port: 5173
     },
