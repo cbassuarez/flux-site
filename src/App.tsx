@@ -4,10 +4,7 @@ import DocsPage from "./pages/DocsPage";
 import ToolingPage from "./pages/ToolingPage";
 import RoadmapPage from "./pages/RoadmapPage";
 import { Header } from "./components/Header";
-import EditorApp from "./edit/EditorApp";
 import EditLandingPage from "./pages/EditLandingPage";
-
-const isEditorBase = import.meta.env.BASE_URL.startsWith("/edit");
 
 function DefaultLayout() {
   return (
@@ -37,10 +34,6 @@ function SiteShell() {
 }
 
 export default function App() {
-  if (isEditorBase) {
-    return <EditorApp />;
-  }
-
   return (
     <Routes>
       <Route element={<SiteShell />}>
