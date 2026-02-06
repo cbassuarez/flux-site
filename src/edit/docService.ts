@@ -259,14 +259,28 @@ export function createDocService(): DocService {
     const prevSource = state.doc?.source ?? "";
     let errorMessage: string | undefined;
     setState({ ...state, isApplying: true, error: undefined });
+    const { request, fallback } = buildTransformRequest(transform, state.doc);
+    let usedFallback = false;
     try {
-      const { request, fallback } = buildTransformRequest(transform, state.doc);
-      let payload = await postTransform(request);
-      let ok = (payload as any)?.ok !== false;
+      let payload: unknown;
+      let ok = false;
+      try {
+        payload = await postTransform(request);
+        ok = (payload as any)?.ok !== false;
+      } catch (error) {
+        if (fallback) {
+          payload = await postTransform(fallback);
+          ok = (payload as any)?.ok !== false;
+          usedFallback = true;
+        } else {
+          throw error;
+        }
+      }
 
-      if (!ok && fallback) {
+      if (!ok && fallback && !usedFallback) {
         payload = await postTransform(fallback);
         ok = (payload as any)?.ok !== false;
+        usedFallback = true;
       }
 
       const nextState = extractStateFromPayload(payload) ?? null;

@@ -617,6 +617,15 @@ export default function EditorApp() {
     [applyTextContent],
   );
 
+  const applySlotGenerator = useCallback(
+    (slotId: string, spec: SlotGeneratorSpec) => {
+      const expr = buildGeneratorExpr(spec);
+      const generator = expr ? wrapExpressionValue(expr) : (spec as unknown as Record<string, unknown>);
+      void handleTransform({ type: "setSlotGenerator", id: slotId, generator });
+    },
+    [handleTransform],
+  );
+
   const commitFrame = useCallback(
     (frame: ImageFrame) => {
       if (!frameEntry) return;
@@ -1303,9 +1312,7 @@ export default function EditorApp() {
                                 runtime={docState.runtime}
                                 onRuntimeChange={(inputs) => docService.setRuntimeInputs(inputs)}
                                 onLiteralChange={(textId, text) => applyTextContent(textId, { text })}
-                                onGeneratorChange={(generator) =>
-                                  handleTransform({ type: "setSlotGenerator", id: selectedNode.id, generator })
-                                }
+                                onGeneratorChange={(spec) => applySlotGenerator(selectedNode.id, spec)}
                                 onPropsChange={(payload) => handleTransform({ type: "setSlotProps", id: selectedNode.id, ...payload })}
                               />
                             ) : null}
@@ -1862,7 +1869,7 @@ function SlotInspector({
   runtime: { seed: number; time: number; docstep: number };
   onRuntimeChange: (inputs: Partial<{ seed: number; time: number; docstep: number }>) => void;
   onLiteralChange: (textId: string, text: string) => void;
-  onGeneratorChange: (generator: Record<string, unknown>) => void;
+  onGeneratorChange: (generator: SlotGeneratorSpec) => void;
   onPropsChange: (payload: { reserve?: string; fit?: string; refresh?: RefreshPolicy }) => void;
 }) {
   const program = useMemo(() => readSlotProgram(node), [node]);
@@ -1942,7 +1949,7 @@ function SlotInspector({
       onLiteralChange(program.source.textId, spec.value);
       return;
     }
-    onGeneratorChange(spec as Record<string, unknown>);
+    onGeneratorChange(spec);
   }, 220);
 
   const handleVariantChange = (index: number, value: string) => {
@@ -2724,6 +2731,62 @@ function readNumberLiteral(expr: any): number | null {
     return Number.isNaN(parsed) ? null : parsed;
   }
   return null;
+}
+
+function buildGeneratorExpr(spec: SlotGeneratorSpec): any | null {
+  if (spec.kind === "literal") {
+    return { kind: "Literal", value: spec.value };
+  }
+  if (spec.kind === "choose" || spec.kind === "cycle") {
+    return {
+      kind: "CallExpression",
+      callee: { kind: "Identifier", name: spec.kind },
+      args: spec.values.map((value) => ({ kind: "Literal", value })),
+    };
+  }
+  if (spec.kind === "assetsPick") {
+    return {
+      kind: "CallExpression",
+      callee: {
+        kind: "MemberExpression",
+        object: { kind: "Identifier", name: "assets" },
+        property: "pick",
+      },
+      args: spec.tags.map((tag) => ({ kind: "Literal", value: tag })),
+    };
+  }
+  if (spec.kind === "poisson") {
+    return {
+      kind: "CallExpression",
+      callee: { kind: "Identifier", name: "poisson" },
+      args: [{ kind: "Literal", value: spec.ratePerSec }],
+    };
+  }
+  if (spec.kind === "at") {
+    return {
+      kind: "CallExpression",
+      callee: { kind: "Identifier", name: "at" },
+      args: [
+        ...spec.times.map((time) => ({ kind: "Literal", value: time })),
+        ...spec.values.map((value) => ({ kind: "Literal", value })),
+      ],
+    };
+  }
+  if (spec.kind === "every") {
+    return {
+      kind: "CallExpression",
+      callee: { kind: "Identifier", name: "every" },
+      args: [
+        { kind: "Literal", value: spec.amount },
+        ...(spec.values ?? []).map((value) => ({ kind: "Literal", value })),
+      ],
+    };
+  }
+  return null;
+}
+
+function wrapExpressionValue(expr: any): Record<string, unknown> {
+  return { kind: "ExpressionValue", expr };
 }
 
 function seededIndex(runtime: { seed: number; time: number; docstep: number }, slotId: string, length: number): number {
