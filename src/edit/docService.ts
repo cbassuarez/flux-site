@@ -1,5 +1,7 @@
-import { parseDocument, type DocumentNode, type FluxDocument } from "@flux-lang/core";
+import { parseDocument, type DocumentNode, type FluxDocument, type RefreshPolicy } from "@flux-lang/core";
+import type { JSONContent } from "@tiptap/core";
 import { fetchEditSource, fetchEditState, postTransform, type TransformRequest } from "./api";
+import { tiptapToFluxText } from "./richText";
 
 export type DocIndexEntry = {
   id: string;
@@ -34,20 +36,54 @@ export type EditorDoc = {
   capabilities?: Record<string, unknown>;
 };
 
+export type EditorSelection = {
+  id: string | null;
+  kind?: string | null;
+};
+
+export type RuntimeInputs = {
+  seed: number;
+  time: number;
+  docstep: number;
+};
+
+export type EditorTransform =
+  | { type: "setTextNodeContent"; id: string; text?: string; richText?: JSONContent }
+  | { type: "setNodeProps"; id: string; props: Record<string, unknown> }
+  | { type: "setSlotProps"; id: string; reserve?: string; fit?: string; refresh?: RefreshPolicy }
+  | { type: "setSlotGenerator"; id: string; generator: Record<string, unknown> }
+  | { type: "reorderNode"; id: string; parentId: string; index: number }
+  | { type: "replaceNode"; id: string; node: DocumentNode }
+  | { type: "setSource"; source: string }
+  | { type: "server"; request: TransformRequest };
+
+export type ApplyTransformResult = {
+  ok: boolean;
+  nextAst: FluxDocument | null;
+  nextSource: string;
+  diagnostics?: unknown;
+  error?: string;
+};
+
 export type DocServiceState = {
   status: "idle" | "loading" | "ready" | "error";
   error?: string;
   doc: EditorDoc | null;
+  selection: EditorSelection;
+  runtime: RuntimeInputs;
+  isApplying: boolean;
 };
 
 export type DocService = {
   getState: () => DocServiceState;
   subscribe: (listener: () => void) => () => void;
   loadDoc: () => Promise<DocServiceState>;
-  applyTransform: (transform: TransformRequest, options?: { pushHistory?: boolean }) => Promise<DocServiceState>;
+  applyTransform: (transform: EditorTransform | TransformRequest, options?: { pushHistory?: boolean }) => Promise<ApplyTransformResult>;
   saveDoc: (source: string) => Promise<DocServiceState>;
   undo: () => Promise<DocServiceState | null>;
   redo: () => Promise<DocServiceState | null>;
+  setSelection: (id: string | null, kind?: string | null) => void;
+  setRuntimeInputs: (inputs: Partial<RuntimeInputs>) => void;
 };
 
 type SourcePayload = Awaited<ReturnType<typeof fetchEditSource>>;
@@ -112,7 +148,13 @@ function extractStateFromPayload(payload: unknown): Record<string, unknown> | nu
 }
 
 export function createDocService(): DocService {
-  let state: DocServiceState = { status: "idle", doc: null };
+  let state: DocServiceState = {
+    status: "idle",
+    doc: null,
+    selection: { id: null, kind: null },
+    runtime: { seed: 0, time: 0, docstep: 0 },
+    isApplying: false,
+  };
   const listeners = new Set<() => void>();
   let undoStack: string[] = [];
   let redoStack: string[] = [];
@@ -122,60 +164,131 @@ export function createDocService(): DocService {
     listeners.forEach((listener) => listener());
   };
 
+  const refreshFromPayload = async (
+    payload: unknown,
+    overrideSource?: string,
+    overrideState?: Record<string, unknown> | null,
+  ): Promise<EditorDoc | null> => {
+    const payloadState = extractStateFromPayload(payload) ?? overrideState ?? (payload as Record<string, unknown>);
+    const source =
+      overrideSource ??
+      (typeof (payload as any)?.source === "string" ? ((payload as any).source as string) : undefined) ??
+      (payloadState?.source as string | undefined) ??
+      state.doc?.source ??
+      "";
+    const docPath = (payloadState?.path as string | undefined) ?? state.doc?.docPath;
+    const astFromState = (payloadState as any)?.doc ?? (payloadState as any)?.ast ?? null;
+    const ast = astFromState && typeof astFromState === "object" ? (astFromState as FluxDocument) : parseDoc(source, docPath);
+    const index = buildIndex(ast);
+    const assetsIndex = buildAssetsIndex((payloadState as any)?.assets ?? (payload as any)?.assets);
+    const nextDoc: EditorDoc = {
+      source,
+      ast,
+      index,
+      assetsIndex,
+      diagnostics: (payloadState as any)?.diagnostics ?? state.doc?.diagnostics,
+      revision: (payloadState as any)?.revision ?? (payload as any)?.revision ?? state.doc?.revision,
+      lastValidRevision:
+        (payloadState as any)?.lastValidRevision ?? (payload as any)?.lastValidRevision ?? state.doc?.lastValidRevision,
+      docPath,
+      title: (payloadState as any)?.title ?? state.doc?.title,
+      previewPath: (payloadState as any)?.previewPath ?? state.doc?.previewPath ?? "/preview",
+      capabilities: (payloadState as any)?.capabilities ?? state.doc?.capabilities,
+    };
+
+    const nextRuntime = extractRuntimeInputs(payloadState, state.runtime);
+    const nextSelection = normalizeSelection(state.selection, index);
+    setState({
+      status: "ready",
+      doc: nextDoc,
+      error: undefined,
+      selection: nextSelection,
+      runtime: nextRuntime,
+      isApplying: false,
+    });
+    return nextDoc;
+  };
+
   const refreshFromServer = async (overrideSource?: string, overrideState?: Record<string, unknown> | null) => {
-    const [statePayload, sourcePayload] = await Promise.all([
+    const [statePayloadRaw, sourcePayload] = await Promise.all([
       fetchEditState(),
       overrideSource ? Promise.resolve({ source: overrideSource } as SourcePayload) : fetchEditSource(),
     ]);
-    const mergedState = overrideState ?? (statePayload as Record<string, unknown>);
+    const extractedState = extractStateFromPayload(statePayloadRaw) ?? (statePayloadRaw as Record<string, unknown>);
+    const mergedState = overrideState ?? extractedState;
     const source = overrideSource ?? sourcePayload?.source ?? "";
     const docPath = (mergedState?.path as string | undefined) ?? sourcePayload?.docPath;
     const astFromState = (mergedState as any)?.doc ?? (mergedState as any)?.ast ?? null;
     const ast =
       astFromState && typeof astFromState === "object" ? (astFromState as FluxDocument) : parseDoc(source, docPath);
     const index = buildIndex(ast);
-    const assetsIndex = buildAssetsIndex((mergedState as any)?.assets ?? (statePayload as any)?.assets);
+    const assetsIndex = buildAssetsIndex((mergedState as any)?.assets ?? (statePayloadRaw as any)?.assets);
+    const nextRuntime = extractRuntimeInputs(mergedState, state.runtime);
 
     const nextDoc: EditorDoc = {
       source,
       ast,
       index,
       assetsIndex,
-      diagnostics: (mergedState as any)?.diagnostics ?? (statePayload as any)?.diagnostics,
+      diagnostics: (mergedState as any)?.diagnostics ?? (statePayloadRaw as any)?.diagnostics,
       revision: (mergedState as any)?.revision ?? sourcePayload?.revision,
       lastValidRevision: (mergedState as any)?.lastValidRevision ?? sourcePayload?.lastValidRevision,
       docPath,
       title: (mergedState as any)?.title,
-      previewPath: (mergedState as any)?.previewPath ?? (statePayload as any)?.previewPath ?? "/preview",
+      previewPath: (mergedState as any)?.previewPath ?? (statePayloadRaw as any)?.previewPath ?? "/preview",
       capabilities: (mergedState as any)?.capabilities,
     };
 
-    setState({ status: "ready", doc: nextDoc });
+    const nextSelection = normalizeSelection(state.selection, index);
+    setState({ status: "ready", doc: nextDoc, selection: nextSelection, runtime: nextRuntime, isApplying: false });
     return state;
   };
 
   const loadDoc = async () => {
-    setState({ ...state, status: "loading", error: undefined });
+    setState({ ...state, status: "loading", error: undefined, isApplying: false });
     try {
       return await refreshFromServer();
     } catch (error) {
       const message = (error as Error)?.message ?? String(error);
-      setState({ status: "error", error: message, doc: state.doc });
+      setState({ status: "error", error: message, doc: state.doc, selection: state.selection, runtime: state.runtime, isApplying: false });
       return state;
     }
   };
 
-  const applyTransform = async (transform: TransformRequest, options?: { pushHistory?: boolean }) => {
+  const applyTransform = async (transform: EditorTransform | TransformRequest, options?: { pushHistory?: boolean }) => {
     const prevSource = state.doc?.source ?? "";
+    let errorMessage: string | undefined;
+    setState({ ...state, isApplying: true, error: undefined });
     try {
-      const payload = await postTransform(transform);
-      const ok = (payload as any)?.ok !== false;
-      const nextState = extractStateFromPayload(payload);
+      const { request, fallback } = buildTransformRequest(transform, state.doc);
+      let payload = await postTransform(request);
+      let ok = (payload as any)?.ok !== false;
+
+      if (!ok && fallback) {
+        payload = await postTransform(fallback);
+        ok = (payload as any)?.ok !== false;
+      }
+
+      const nextState = extractStateFromPayload(payload) ?? null;
       if (!ok) {
         const diagnostics = (payload as any)?.diagnostics ?? nextState?.diagnostics ?? state.doc?.diagnostics;
         const nextDoc = state.doc ? { ...state.doc, diagnostics } : state.doc;
-        setState({ status: "ready", doc: nextDoc, error: (payload as any)?.error as string | undefined });
-        return state;
+        errorMessage = (payload as any)?.error as string | undefined;
+        setState({
+          status: "ready",
+          doc: nextDoc,
+          error: errorMessage,
+          selection: state.selection,
+          runtime: state.runtime,
+          isApplying: false,
+        });
+        return {
+          ok: false,
+          nextAst: nextDoc?.ast ?? null,
+          nextSource: nextDoc?.source ?? prevSource,
+          diagnostics: nextDoc?.diagnostics,
+          error: errorMessage,
+        };
       }
 
       if (options?.pushHistory !== false) {
@@ -184,16 +297,41 @@ export function createDocService(): DocService {
       }
 
       const nextSource = typeof (payload as any)?.source === "string" ? (payload as any).source : undefined;
-      return await refreshFromServer(nextSource, nextState);
+      const nextDoc = await refreshFromPayload(payload, nextSource, nextState);
+
+      return {
+        ok: true,
+        nextAst: nextDoc?.ast ?? null,
+        nextSource: nextDoc?.source ?? prevSource,
+        diagnostics: nextDoc?.diagnostics,
+      };
     } catch (error) {
-      const message = (error as Error)?.message ?? String(error);
-      setState({ status: "error", error: message, doc: state.doc });
-      return state;
+      errorMessage = (error as Error)?.message ?? String(error);
+      setState({
+        status: "error",
+        error: errorMessage,
+        doc: state.doc,
+        selection: state.selection,
+        runtime: state.runtime,
+        isApplying: false,
+      });
+      return {
+        ok: false,
+        nextAst: state.doc?.ast ?? null,
+        nextSource: state.doc?.source ?? prevSource,
+        diagnostics: state.doc?.diagnostics,
+        error: errorMessage,
+      };
+    } finally {
+      if (state.isApplying) {
+        setState({ ...state, isApplying: false });
+      }
     }
   };
 
   const saveDoc = async (source: string) => {
-    return applyTransform({ op: "setSource", args: { source } }, { pushHistory: false });
+    const result = await applyTransform({ type: "setSource", source }, { pushHistory: false });
+    return state;
   };
 
   const undo = async () => {
@@ -203,7 +341,8 @@ export function createDocService(): DocService {
     if (state.doc?.source) {
       redoStack = [...redoStack, state.doc.source].slice(-50);
     }
-    return saveDoc(previous);
+    await saveDoc(previous);
+    return state;
   };
 
   const redo = async () => {
@@ -213,7 +352,8 @@ export function createDocService(): DocService {
     if (state.doc?.source) {
       undoStack = [...undoStack, state.doc.source].slice(-50);
     }
-    return saveDoc(next);
+    await saveDoc(next);
+    return state;
   };
 
   const subscribe = (listener: () => void) => {
@@ -223,6 +363,17 @@ export function createDocService(): DocService {
 
   const getState = () => state;
 
+  const setSelection = (id: string | null, kind?: string | null) => {
+    const normalized = id ? id : null;
+    if (state.selection.id === normalized && state.selection.kind === (kind ?? state.selection.kind)) return;
+    setState({ ...state, selection: { id: normalized, kind: kind ?? null } });
+  };
+
+  const setRuntimeInputs = (inputs: Partial<RuntimeInputs>) => {
+    const next = { ...state.runtime, ...inputs };
+    setState({ ...state, runtime: next });
+  };
+
   return {
     getState,
     subscribe,
@@ -231,5 +382,176 @@ export function createDocService(): DocService {
     saveDoc,
     undo,
     redo,
+    setSelection,
+    setRuntimeInputs,
   };
+}
+
+function normalizeSelection(selection: EditorSelection, index: Map<string, DocIndexEntry>): EditorSelection {
+  if (!selection.id) return { id: null, kind: selection.kind ?? null };
+  const entry = index.get(selection.id);
+  if (!entry) return { id: null, kind: null };
+  return { id: selection.id, kind: entry.node.kind };
+}
+
+function extractRuntimeInputs(raw: Record<string, unknown> | null | undefined, previous: RuntimeInputs): RuntimeInputs {
+  if (!raw || typeof raw !== "object") return previous;
+  const runtime =
+    (raw as any).runtime ??
+    (raw as any).snapshot ??
+    (raw as any).state ??
+    (raw as any).runtimeState ??
+    null;
+  const seed = readNumber(runtime?.seed ?? runtime?.randomSeed ?? (raw as any).seed ?? previous.seed);
+  const time = readNumber(runtime?.time ?? runtime?.clock ?? (raw as any).time ?? previous.time);
+  const docstep = readNumber(runtime?.docstep ?? runtime?.step ?? (raw as any).docstep ?? previous.docstep);
+  return { seed, time, docstep };
+}
+
+function readNumber(value: unknown): number {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function buildTransformRequest(transform: EditorTransform | TransformRequest, doc?: EditorDoc | null): {
+  request: TransformRequest;
+  fallback?: TransformRequest;
+} {
+  if ("op" in transform) return { request: transform };
+  if (transform.type === "server") return { request: transform.request };
+  if (transform.type === "setSource") {
+    return { request: { op: "setSource", args: { source: transform.source } } };
+  }
+  if (transform.type === "replaceNode") {
+    return { request: { op: "replaceNode", args: { id: transform.id, node: transform.node } } };
+  }
+  if (transform.type === "setTextNodeContent") {
+    const request: TransformRequest = {
+      op: "setTextNodeContent",
+      args: {
+        id: transform.id,
+        nodeId: transform.id,
+        text: transform.text,
+        richText: transform.richText,
+      },
+    };
+    const fallback = buildTextReplaceNodeFallback(transform, doc);
+    return { request, fallback };
+  }
+  if (transform.type === "setNodeProps") {
+    return {
+      request: {
+        op: "setNodeProps",
+        args: { id: transform.id, nodeId: transform.id, props: transform.props },
+      },
+    };
+  }
+  if (transform.type === "setSlotProps") {
+    const request: TransformRequest = {
+      op: "setSlotProps",
+      args: {
+        id: transform.id,
+        slotId: transform.id,
+        reserve: transform.reserve,
+        fit: transform.fit,
+        refresh: transform.refresh,
+      },
+    };
+    const fallback = buildSlotPropsFallback(transform, doc);
+    return {
+      request,
+      fallback,
+    };
+  }
+  if (transform.type === "setSlotGenerator") {
+    const request: TransformRequest = {
+      op: "setSlotGenerator",
+      args: {
+        id: transform.id,
+        slotId: transform.id,
+        generator: transform.generator,
+      },
+    };
+    const fallback = buildSlotGeneratorFallback(transform, doc);
+    return {
+      request,
+      fallback,
+    };
+  }
+  if (transform.type === "reorderNode") {
+    return {
+      request: {
+        op: "reorderNode",
+        args: {
+          id: transform.id,
+          nodeId: transform.id,
+          parentId: transform.parentId,
+          index: transform.index,
+        },
+      },
+    };
+  }
+  return { request: transform as TransformRequest };
+}
+
+function buildTextReplaceNodeFallback(
+  transform: Extract<EditorTransform, { type: "setTextNodeContent" }>,
+  doc?: EditorDoc | null,
+): TransformRequest | undefined {
+  if (!doc?.index) return undefined;
+  const entry = doc.index.get(transform.id);
+  if (!entry) return undefined;
+  const existingIds = new Set(doc.index.keys());
+  let nextNode: DocumentNode | null = null;
+
+  if (transform.richText) {
+    nextNode = tiptapToFluxText(entry.node, transform.richText, existingIds);
+  } else if (typeof transform.text === "string") {
+    const nextProps: Record<string, any> = { ...(entry.node.props ?? {}) };
+    nextProps.content = { kind: "LiteralValue", value: transform.text };
+    nextNode = { ...entry.node, props: nextProps, children: [] };
+  }
+
+  if (!nextNode) return undefined;
+  return { op: "replaceNode", args: { id: transform.id, node: nextNode } };
+}
+
+function buildSlotPropsFallback(
+  transform: Extract<EditorTransform, { type: "setSlotProps" }>,
+  doc?: EditorDoc | null,
+): TransformRequest | undefined {
+  if (!doc?.index) return undefined;
+  const entry = doc.index.get(transform.id);
+  if (!entry) return undefined;
+  if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") return undefined;
+  const nextProps: Record<string, any> = { ...(entry.node.props ?? {}) };
+  if (transform.reserve !== undefined) nextProps.reserve = { kind: "LiteralValue", value: transform.reserve };
+  if (transform.fit !== undefined) nextProps.fit = { kind: "LiteralValue", value: transform.fit };
+  const nextNode: DocumentNode = {
+    ...entry.node,
+    props: nextProps,
+    refresh: transform.refresh ?? entry.node.refresh,
+  };
+  return { op: "replaceNode", args: { id: transform.id, node: nextNode } };
+}
+
+function buildSlotGeneratorFallback(
+  transform: Extract<EditorTransform, { type: "setSlotGenerator" }>,
+  doc?: EditorDoc | null,
+): TransformRequest | undefined {
+  if (!doc?.index) return undefined;
+  const entry = doc.index.get(transform.id);
+  if (!entry) return undefined;
+  if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") return undefined;
+  const nextProps: Record<string, any> = { ...(entry.node.props ?? {}) };
+  nextProps.generator = transform.generator as any;
+  const nextNode: DocumentNode = {
+    ...entry.node,
+    props: nextProps,
+  };
+  return { op: "replaceNode", args: { id: transform.id, node: nextNode } };
 }

@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "postbuild": "node scripts/copy-404.mjs && node scripts/copy-edit.mjs",
-    "test": "vitest"
+    "test": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@flux-lang/core": "^0.1.7",
@@ -41,6 +42,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^16.0.1",
+    "@playwright/test": "^1.42.1",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.3",

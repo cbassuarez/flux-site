@@ -1,4 +1,6 @@
 import {
+  Component,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -10,6 +12,7 @@ import { DndContext, DragOverlay, PointerSensor, useDroppable, useDraggable, use
 import { CSS } from "@dnd-kit/utilities";
 import { Command } from "cmdk";
 import MonacoEditor, { loader } from "@monaco-editor/react";
+import type { JSONContent } from "@tiptap/core";
 import type { DocumentNode, NodePropValue, RefreshPolicy } from "@flux-lang/core";
 import "./editor.css";
 import {
@@ -22,9 +25,10 @@ import {
   StatusBar,
 } from "./components/EditorShell";
 import { monaco } from "./monaco";
-import { createDocService, type AssetItem, type DocIndexEntry } from "./docService";
+import { createDocService, type AssetItem, type DocIndexEntry, type EditorTransform } from "./docService";
 import { buildOutlineFromDoc, extractPlainText, getLiteralString, getLiteralValue, type OutlineNode } from "./docModel";
 import RichTextEditor from "./RichTextEditor";
+import type { TransformRequest } from "./api";
 import {
   applyImageFrame,
   ensureFluxAttributes,
@@ -65,8 +69,7 @@ export default function EditorApp() {
   const docService = serviceRef.current;
   const docState = useSyncExternalStore(docService.subscribe, docService.getState);
   const doc = docState.doc;
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = docState.selection.id;
   const [activeMode, setActiveMode] = useState<"preview" | "edit" | "source">("preview");
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
@@ -79,7 +82,6 @@ export default function EditorApp() {
   const [showIds, setShowIds] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [sourceDraft, setSourceDraft] = useState("");
-  const [isApplying, setIsApplying] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [toast, setToast] = useState<Toast | null>(null);
   const [draggingAsset, setDraggingAsset] = useState<AssetItem | null>(null);
@@ -92,7 +94,10 @@ export default function EditorApp() {
   const [transformError, setTransformError] = useState<string | null>(null);
   const [adjustImageMode, setAdjustImageMode] = useState(false);
   const [frameDraft, setFrameDraft] = useState<ImageFrame | null>(null);
+  const [focusedPane, setFocusedPane] = useState("none");
+  const [debugEnabled] = useState(() => isDebugEnabled());
 
+  const editorRootRef = useRef<HTMLDivElement | null>(null);
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const previewWrapRef = useRef<HTMLDivElement | null>(null);
   const richEditorRef = useRef<any>(null);
@@ -107,6 +112,17 @@ export default function EditorApp() {
   const previewCleanupRef = useRef<(() => void) | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const selectNode = useCallback(
+    (id: string | null) => {
+      if (!id) {
+        docService.setSelection(null);
+        return;
+      }
+      const kind = doc?.index?.get(id)?.node.kind ?? null;
+      docService.setSelection(id, kind);
+    },
+    [doc?.index, docService],
+  );
 
   useEffect(() => {
     void docService.loadDoc();
@@ -146,15 +162,59 @@ export default function EditorApp() {
   }, []);
 
   useEffect(() => {
+    if (!debugEnabled) return;
+    const root = editorRootRef.current;
+    if (!root) return;
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const topmost = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+      if (!topmost) return;
+      const style = window.getComputedStyle(topmost);
+      console.info("[editor-hit-test]", {
+        target: target ? `${target.tagName.toLowerCase()}#${target.id || ""}.${target.className || ""}` : "none",
+        topmost: `${topmost.tagName.toLowerCase()}#${topmost.id || ""}.${topmost.className || ""}`,
+        pointerEvents: style.pointerEvents,
+      });
+    };
+    root.addEventListener("click", handleClick, true);
+    return () => root.removeEventListener("click", handleClick, true);
+  }, [debugEnabled]);
+
+  useEffect(() => {
+    if (!debugEnabled) return;
+    const handleFocus = () => {
+      const active = document.activeElement as HTMLElement | null;
+      if (!active) {
+        setFocusedPane("none");
+        return;
+      }
+      if (active.closest(".inspector-pane")) {
+        setFocusedPane("inspector");
+      } else if (active.closest(".outline-pane")) {
+        setFocusedPane("outline");
+      } else if (active.closest(".page-stage")) {
+        setFocusedPane("preview");
+      } else if (active.closest(".rich-text-editor") || active.closest(".text-fallback-editor")) {
+        setFocusedPane("editor");
+      } else {
+        setFocusedPane("other");
+      }
+    };
+    window.addEventListener("focusin", handleFocus);
+    handleFocus();
+    return () => window.removeEventListener("focusin", handleFocus);
+  }, [debugEnabled]);
+
+  useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== "object") return;
       if (event.data.type === "flux-select" && event.data.nodeId) {
-        setSelectedId(String(event.data.nodeId));
+        selectNode(String(event.data.nodeId));
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, []);
+  }, [selectNode]);
 
   useEffect(() => {
     return () => {
@@ -182,8 +242,8 @@ export default function EditorApp() {
 
   useEffect(() => {
     if (selectedId || !outline.length) return;
-    setSelectedId(outline[0].id);
-  }, [outline, selectedId]);
+    selectNode(outline[0].id);
+  }, [outline, selectedId, selectNode]);
 
   const selectedEntry = useMemo(() => {
     if (!selectedId || !doc?.index) return null;
@@ -193,13 +253,9 @@ export default function EditorApp() {
   const selectedNode = selectedEntry?.node ?? null;
   const existingIds = useMemo(() => new Set(doc?.index?.keys() ?? []), [doc?.index]);
   const frameEntry = useMemo(() => resolveFrameEntry(selectedEntry, doc?.index), [doc?.index, selectedEntry]);
-  const slotHasImage = useMemo(() => {
-    if (!selectedNode || selectedNode.kind !== "slot") return false;
-    return Boolean(findFirstChild(selectedNode, "image"));
-  }, [selectedNode]);
-
   const activeTextEntry = useMemo(() => {
     if (!selectedEntry || !doc?.index) return null;
+    if (isSlotContext(selectedEntry, doc.index)) return null;
     if (selectedEntry.node.kind === "text") return selectedEntry;
 
     const descendant = findFirstChild(selectedEntry.node, "text");
@@ -215,6 +271,21 @@ export default function EditorApp() {
   }, [selectedEntry, doc?.index]);
 
   const activeTextNode = activeTextEntry?.node ?? null;
+  const captionTarget = useMemo(() => {
+    if (!selectedNode || selectedNode.kind !== "figure") return null;
+    return resolveCaptionTarget(selectedNode);
+  }, [selectedNode]);
+
+  useEffect(() => {
+    if (activeMode !== "edit") return;
+    if (!activeTextNode) return;
+    const editor = richEditorRef.current;
+    if (!editor?.commands?.focus) return;
+    const timer = window.setTimeout(() => {
+      editor.commands.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeMode, activeTextNode?.id]);
 
   useEffect(() => {
     if (!frameEntry) {
@@ -288,14 +359,14 @@ export default function EditorApp() {
     for (const entry of doc.index.values()) {
       if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") continue;
       if (entry.node.kind === "slot" && findFirstChild(entry.node, "image")) continue;
-      const textNode = entry.node.children?.find((child) => child.kind === "text");
-      const text = getLiteralString(textNode?.props?.content) ?? "";
+      const resolved = resolveSlotDisplayText(entry.node, docState.runtime, doc?.assetsIndex ?? []);
+      const text = sanitizeSlotText(resolved ?? "");
       const slotEl = findFluxElement(frameDoc, entry.id);
       if (!slotEl) continue;
       ensureFluxAttributes(slotEl, entry.id, entry.node.kind);
-      patchSlotText(slotEl, sanitizeSlotText(text), entry.node.kind === "inline_slot");
+      patchSlotText(slotEl, text, entry.node.kind === "inline_slot");
     }
-  }, [doc?.index]);
+  }, [doc?.assetsIndex, doc?.index, docState.runtime]);
 
   const applyFrameToPreview = useCallback(
     (frame: ImageFrame) => {
@@ -327,7 +398,7 @@ export default function EditorApp() {
       const fluxEl = target?.closest?.("[data-flux-id], [data-flux-node]") as HTMLElement | null;
       if (!fluxEl) return;
       const nodeId = fluxEl.getAttribute("data-flux-id") ?? fluxEl.getAttribute("data-flux-node");
-      if (nodeId) setSelectedId(String(nodeId));
+      if (nodeId) selectNode(String(nodeId));
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -473,8 +544,8 @@ export default function EditorApp() {
 
   useEffect(() => {
     if (!activeFindItem) return;
-    setSelectedId(activeFindItem.id);
-  }, [activeFindItem]);
+    selectNode(activeFindItem.id);
+  }, [activeFindItem, selectNode]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -507,18 +578,16 @@ export default function EditorApp() {
   const sourceDirty = doc?.source ? sourceDraft !== doc.source : false;
 
   const handleTransform = useCallback(
-    async (transform: { op: string; args: Record<string, unknown> }, successMessage?: string) => {
-      setIsApplying(true);
+    async (transform: EditorTransform | TransformRequest, successMessage?: string) => {
       setSaveStatus("saving");
-      const nextState = await docService.applyTransform(transform, { pushHistory: true });
-      setIsApplying(false);
-      if (nextState.status === "ready") {
+      const result = await docService.applyTransform(transform, { pushHistory: true });
+      if (result.ok) {
         setSaveStatus("saved");
         setTransformError(null);
         if (successMessage) setToast({ kind: "success", message: successMessage });
       } else {
         setSaveStatus("error");
-        const message = nextState.error ?? "Transform failed";
+        const message = result.error ?? "Transform failed";
         setTransformError(message);
         setToast({ kind: "error", message });
       }
@@ -526,39 +595,26 @@ export default function EditorApp() {
     [docService],
   );
 
-  const debouncedRichTextUpdate = useDebouncedCallback((node: DocumentNode) => {
-    void handleTransform({ op: "replaceNode", args: { id: node.id, node } });
-  }, 400);
-
-  const applySlotText = useCallback(
-    (slotId: string, text: string) => {
-      if (!doc?.index) return;
-      const entry = doc.index.get(slotId);
-      if (!entry) return;
-      if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") return;
-      const sanitized = sanitizeSlotText(text);
-      patchPreviewSlotText(previewFrameRef.current, entry, sanitized);
-      const ids = new Set(doc.index.keys());
-      const nextNode = buildSlotTextNode(entry.node, sanitized, ids);
-      void handleTransform({ op: "replaceNode", args: { id: nextNode.id, node: nextNode } });
+  const applyTextContent = useCallback(
+    (id: string, payload: { text?: string; richText?: JSONContent }) => {
+      void handleTransform({ type: "setTextNodeContent", id, ...payload });
     },
-    [doc?.index, handleTransform],
+    [handleTransform],
   );
 
-  const debouncedSlotTextUpdate = useDebouncedCallback((slotId: string, text: string) => {
-    applySlotText(slotId, text);
-  }, 220);
+  const debouncedRichTextUpdate = useDebouncedCallback((id: string, richText: JSONContent) => {
+    applyTextContent(id, { richText });
+  }, 400);
 
-  const applySlotProps = useCallback(
-    (slotId: string, payload: { reserve?: string; fit?: string; refresh?: RefreshPolicy }) => {
-      if (!doc?.index) return;
-      const entry = doc.index.get(slotId);
-      if (!entry) return;
-      if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") return;
-      const nextNode = updateSlotProps(entry.node, payload);
-      void handleTransform({ op: "replaceNode", args: { id: nextNode.id, node: nextNode } });
+  const debouncedPlainTextUpdate = useDebouncedCallback((id: string, text: string) => {
+    applyTextContent(id, { text });
+  }, 240);
+
+  const commitPlainTextUpdate = useCallback(
+    (id: string, text: string) => {
+      applyTextContent(id, { text });
     },
-    [doc?.index, handleTransform],
+    [applyTextContent],
   );
 
   const commitFrame = useCallback(
@@ -626,20 +682,18 @@ export default function EditorApp() {
         },
       })
       .run();
-  }, [doc?.index]);
+  }, [existingIds]);
 
   const handleApplySource = useCallback(async () => {
     if (!sourceDirty) return;
-    setIsApplying(true);
     setSaveStatus("saving");
-    const nextState = await docService.saveDoc(sourceDraft);
-    setIsApplying(false);
-    if (nextState.status === "ready") {
+    const result = await docService.applyTransform({ type: "setSource", source: sourceDraft }, { pushHistory: false });
+    if (result.ok) {
       setSaveStatus("saved");
       setToast({ kind: "success", message: "Source applied" });
     } else {
       setSaveStatus("error");
-      setToast({ kind: "error", message: nextState.error ?? "Source apply failed" });
+      setToast({ kind: "error", message: result.error ?? "Source apply failed" });
     }
   }, [docService, sourceDraft, sourceDirty]);
 
@@ -718,9 +772,9 @@ export default function EditorApp() {
       const nextParent = reorderChildren(parentEntry.node, activeId, overId);
       if (!nextParent) return;
       void handleTransform({ op: "replaceNode", args: { id: parentEntry.id, node: nextParent } });
-      setSelectedId(activeId);
+      selectNode(activeId);
     },
-    [doc?.index, handleTransform],
+    [doc?.index, handleTransform, selectNode],
   );
 
   const handleDragEnd = useCallback(
@@ -792,7 +846,7 @@ export default function EditorApp() {
       .map((item) => ({
         id: `goto-${item.id}`,
         label: `Go to ${item.breadcrumbs[item.breadcrumbs.length - 1]}`,
-        action: () => setSelectedId(item.id),
+        action: () => selectNode(item.id),
       }));
 
     const utilityItems = [
@@ -814,6 +868,7 @@ export default function EditorApp() {
     searchItems,
     showIds,
     debugSlots,
+    selectNode,
   ]);
 
   useEffect(() => {
@@ -969,7 +1024,7 @@ export default function EditorApp() {
   }
 
   return (
-    <div className="editor-root">
+    <div className="editor-root" ref={editorRootRef}>
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -990,6 +1045,15 @@ export default function EditorApp() {
                 <span className="save-dot" />
                 <span>{renderSaveStatus(saveStatus, sourceDirty)}</span>
               </div>
+              {debugEnabled ? (
+                <div className="debug-line">
+                  <span>doc: {docState.status}</span>
+                  <span>busy: {docState.isApplying ? "true" : "false"}</span>
+                  <span>overlay: {paletteOpen || findOpen || overflowOpen ? "true" : "false"}</span>
+                  <span>focus: {focusedPane}</span>
+                  <span>selected: {selectedId ?? "none"}</span>
+                </div>
+              ) : null}
             </div>
             <div className="toolbar-center">
               <div className="toolbar-group">
@@ -1085,7 +1149,7 @@ export default function EditorApp() {
                     selectedId={selectedId}
                     draggingAsset={draggingAsset}
                     draggingOutlineId={draggingOutlineId}
-                    onSelect={setSelectedId}
+                    onSelect={selectNode}
                   />
                 ) : (
                   <div className="empty">{outlineQuery ? "No matches." : "No outline data."}</div>
@@ -1144,7 +1208,7 @@ export default function EditorApp() {
                           <span className={`status-pill ${sourceDirty ? "status-dirty" : "status-saved"}`}>
                             {sourceDirty ? "Unsaved" : "Clean"}
                           </span>
-                          <button className="btn btn-ghost btn-xs" onClick={handleApplySource} disabled={!sourceDirty || isApplying}>
+                          <button className="btn btn-ghost btn-xs" onClick={handleApplySource} disabled={!sourceDirty || docState.isApplying}>
                             Apply
                           </button>
                         </div>
@@ -1206,13 +1270,14 @@ export default function EditorApp() {
                               <div className="inspector-section">
                                 <div className="section-title">Content</div>
                                 {activeMode === "edit" ? (
-                                  <RichTextEditor
+                                  <TextContentEditor
                                     node={activeTextNode}
-                                    existingIds={existingIds}
-                                    onUpdate={debouncedRichTextUpdate}
+                                    onRichTextUpdate={(json) => debouncedRichTextUpdate(activeTextNode.id, json)}
+                                    onPlainTextUpdate={(text) => debouncedPlainTextUpdate(activeTextNode.id, text)}
+                                    onPlainTextCommit={(text) => commitPlainTextUpdate(activeTextNode.id, text)}
                                     onInlineSlotSelect={(id) => {
                                       if (id) {
-                                        setSelectedId(id);
+                                        selectNode(id);
                                       }
                                     }}
                                     onReady={(editor) => {
@@ -1234,10 +1299,32 @@ export default function EditorApp() {
                             {selectedNode.kind === "inline_slot" || selectedNode.kind === "slot" ? (
                               <SlotInspector
                                 node={selectedNode}
-                                disableText={selectedNode.kind === "slot" && slotHasImage}
-                                onTextChange={(value) => debouncedSlotTextUpdate(selectedNode.id, value)}
-                                onTextCommit={(value) => applySlotText(selectedNode.id, value)}
-                                onPropsChange={(payload) => applySlotProps(selectedNode.id, payload)}
+                                assets={doc?.assetsIndex ?? []}
+                                runtime={docState.runtime}
+                                onRuntimeChange={(inputs) => docService.setRuntimeInputs(inputs)}
+                                onLiteralChange={(textId, text) => applyTextContent(textId, { text })}
+                                onGeneratorChange={(generator) =>
+                                  handleTransform({ type: "setSlotGenerator", id: selectedNode.id, generator })
+                                }
+                                onPropsChange={(payload) => handleTransform({ type: "setSlotProps", id: selectedNode.id, ...payload })}
+                              />
+                            ) : null}
+
+                            {captionTarget ? (
+                              <CaptionInspector
+                                label="Caption"
+                                value={captionTarget.value}
+                                onCommit={(value) => {
+                                  if (captionTarget.kind === "prop") {
+                                    handleTransform({
+                                      type: "setNodeProps",
+                                      id: captionTarget.id,
+                                      props: { caption: { kind: "LiteralValue", value } },
+                                    });
+                                    return;
+                                  }
+                                  applyTextContent(captionTarget.id, { text: value });
+                                }}
                               />
                             ) : null}
 
@@ -1343,7 +1430,7 @@ export default function EditorApp() {
                               className={`find-result ${idx === findIndex ? "is-active" : ""}`}
                               onClick={() => {
                                 setFindIndex(idx);
-                                setSelectedId(item.id);
+                                selectNode(item.id);
                               }}
                             >
                               <div className="find-text">{item.text}</div>
@@ -1402,14 +1489,16 @@ export default function EditorApp() {
             </div>
           ) : null}
 
-          <CommandPalette
-            open={paletteOpen}
-            onOpenChange={setPaletteOpen}
-            insertItems={commandItems.insertItems}
-            wrapItems={commandItems.wrapItems}
-            headingItems={commandItems.headingItems}
-            utilityItems={commandItems.utilityItems}
-          />
+          {paletteOpen ? (
+            <CommandPalette
+              open={paletteOpen}
+              onOpenChange={setPaletteOpen}
+              insertItems={commandItems.insertItems}
+              wrapItems={commandItems.wrapItems}
+              headingItems={commandItems.headingItems}
+              utilityItems={commandItems.utilityItems}
+            />
+          ) : null}
         </EditorFrame>
 
         <DragOverlay>
@@ -1625,28 +1714,187 @@ function AssetCard({ asset, view }: { asset: AssetItem; view: "grid" | "list" })
   );
 }
 
+class EditorErrorBoundary extends Component<{ onError: (error: Error) => void; children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onError(error);
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
+function TextContentEditor({
+  node,
+  onRichTextUpdate,
+  onPlainTextUpdate,
+  onPlainTextCommit,
+  onInlineSlotSelect,
+  onReady,
+  highlightQuery,
+}: {
+  node: DocumentNode;
+  onRichTextUpdate: (json: JSONContent) => void;
+  onPlainTextUpdate: (text: string) => void;
+  onPlainTextCommit: (text: string) => void;
+  onInlineSlotSelect: (id: string | null) => void;
+  onReady?: (editor: any | null) => void;
+  highlightQuery?: string;
+}) {
+  const [plainDraft, setPlainDraft] = useState(() => extractPlainText(node));
+  const [fallback, setFallback] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
+
+  useEffect(() => {
+    setPlainDraft(extractPlainText(node));
+  }, [node.id, node.props, node.children]);
+
+  useEffect(() => {
+    setEditorReady(false);
+    setFallback(false);
+  }, [node.id]);
+
+  useEffect(() => {
+    if (editorReady || fallback) return;
+    const timer = window.setTimeout(() => setFallback(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [editorReady, fallback]);
+
+  useEffect(() => {
+    if (fallback) onReady?.(null);
+  }, [fallback, onReady]);
+
+  if (fallback) {
+    return (
+      <div className="text-fallback-editor">
+        <div className="fallback-banner">TipTap unavailable. Using fallback editor.</div>
+        <textarea
+          className="textarea"
+          value={plainDraft}
+          onChange={(event) => {
+            const next = event.target.value;
+            setPlainDraft(next);
+            onPlainTextUpdate(next);
+          }}
+          onBlur={() => onPlainTextCommit(plainDraft)}
+          rows={6}
+          autoFocus
+        />
+      </div>
+    );
+  }
+
+  return (
+    <EditorErrorBoundary
+      onError={() => {
+        setFallback(true);
+      }}
+    >
+      <RichTextEditor
+        node={node}
+        onUpdate={onRichTextUpdate}
+        onInlineSlotSelect={onInlineSlotSelect}
+        onReady={(editor) => {
+          setEditorReady(Boolean(editor));
+          onReady?.(editor);
+        }}
+        highlightQuery={highlightQuery}
+      />
+    </EditorErrorBoundary>
+  );
+}
+
+function CaptionInspector({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value, label]);
+
+  return (
+    <div className="inspector-section">
+      <div className="section-title">{label}</div>
+      <label className="field">
+        <span>Text</span>
+        <input
+          className="input"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => onCommit(draft)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onCommit(draft);
+            }
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
 function SlotInspector({
   node,
-  disableText,
-  onTextChange,
-  onTextCommit,
+  assets,
+  runtime,
+  onRuntimeChange,
+  onLiteralChange,
+  onGeneratorChange,
   onPropsChange,
 }: {
   node: DocumentNode;
-  disableText?: boolean;
-  onTextChange: (value: string) => void;
-  onTextCommit: (value: string) => void;
+  assets: AssetItem[];
+  runtime: { seed: number; time: number; docstep: number };
+  onRuntimeChange: (inputs: Partial<{ seed: number; time: number; docstep: number }>) => void;
+  onLiteralChange: (textId: string, text: string) => void;
+  onGeneratorChange: (generator: Record<string, unknown>) => void;
   onPropsChange: (payload: { reserve?: string; fit?: string; refresh?: RefreshPolicy }) => void;
 }) {
-  const slotText = node.children?.find((child) => child.kind === "text");
-  const [text, setText] = useState(getLiteralString(slotText?.props?.content) ?? "");
+  const program = useMemo(() => readSlotProgram(node), [node]);
+  const baseSpec = program.spec;
+  const [variants, setVariants] = useState<string[]>(() => {
+    if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") return [...baseSpec.values];
+    if (baseSpec?.kind === "literal") return [baseSpec.value];
+    return [];
+  });
+  const [tagsDraft, setTagsDraft] = useState<string[]>(() => (baseSpec?.kind === "assetsPick" ? baseSpec.tags : []));
+  const [rateDraft, setRateDraft] = useState<number>(() => (baseSpec?.kind === "poisson" ? baseSpec.ratePerSec : 1));
   const [reserve, setReserve] = useState(getLiteralString(node.props?.reserve) ?? "fixedWidth(8, ch)");
   const [fit, setFit] = useState(getLiteralString(node.props?.fit) ?? "ellipsis");
   const [refresh, setRefresh] = useState(node.refresh?.kind ?? "onLoad");
 
   useEffect(() => {
-    setText(getLiteralString(slotText?.props?.content) ?? "");
-  }, [slotText?.props]);
+    if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") {
+      setVariants([...baseSpec.values]);
+    } else if (baseSpec?.kind === "literal") {
+      setVariants([baseSpec.value]);
+    } else {
+      setVariants([]);
+    }
+  }, [node.id, baseSpec?.kind, JSON.stringify(baseSpec)]);
+
+  useEffect(() => {
+    if (baseSpec?.kind === "assetsPick") setTagsDraft(baseSpec.tags);
+  }, [baseSpec?.kind, JSON.stringify(baseSpec)]);
+
+  useEffect(() => {
+    if (baseSpec?.kind === "poisson") setRateDraft(baseSpec.ratePerSec);
+  }, [baseSpec?.kind, baseSpec && "ratePerSec" in baseSpec ? baseSpec.ratePerSec : 0]);
 
   useEffect(() => {
     setReserve(getLiteralString(node.props?.reserve) ?? "fixedWidth(8, ch)");
@@ -1654,66 +1902,315 @@ function SlotInspector({
     setRefresh(node.refresh?.kind ?? "onLoad");
   }, [node.id, node.props, node.refresh]);
 
+  const effectiveSpec = useMemo(() => {
+    if (!baseSpec) return null;
+    if (baseSpec.kind === "choose" || baseSpec.kind === "cycle") {
+      return { ...baseSpec, values: variants };
+    }
+    if (baseSpec.kind === "literal") {
+      return { ...baseSpec, value: variants[0] ?? "" };
+    }
+    if (baseSpec.kind === "assetsPick") {
+      return { ...baseSpec, tags: tagsDraft };
+    }
+    if (baseSpec.kind === "poisson") {
+      return { ...baseSpec, ratePerSec: rateDraft };
+    }
+    return baseSpec;
+  }, [baseSpec, rateDraft, tagsDraft, variants]);
+
+  const currentValue = useMemo(
+    () => resolveSlotValue(effectiveSpec, runtime, node.id, assets) ?? "",
+    [assets, effectiveSpec, node.id, runtime],
+  );
+
+  const simulation = useMemo(
+    () => simulateSlotValues(effectiveSpec, runtime, node.id, assets, 12),
+    [assets, effectiveSpec, node.id, runtime],
+  );
+
+  const candidateAssets = useMemo(() => {
+    if (effectiveSpec?.kind !== "assetsPick") return [];
+    return filterAssetsByTags(assets, effectiveSpec.tags);
+  }, [assets, effectiveSpec]);
+
+  const generatorDetails = useMemo(() => describeGenerator(effectiveSpec), [effectiveSpec]);
+
+  const pushGeneratorUpdate = useDebouncedCallback((spec: SlotGeneratorSpec | null) => {
+    if (!spec) return;
+    if (spec.kind === "literal" && program.source.kind === "text" && program.source.textId) {
+      onLiteralChange(program.source.textId, spec.value);
+      return;
+    }
+    onGeneratorChange(spec as Record<string, unknown>);
+  }, 220);
+
+  const handleVariantChange = (index: number, value: string) => {
+    const next = variants.map((item, idx) => (idx === index ? value : item));
+    setVariants(next);
+    if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") {
+      pushGeneratorUpdate({ ...baseSpec, values: next });
+    } else if (baseSpec?.kind === "literal") {
+      pushGeneratorUpdate({ ...baseSpec, value });
+    }
+  };
+
+  const handleAddVariant = () => {
+    const next = [...variants, ""];
+    setVariants(next);
+    if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") {
+      onGeneratorChange({ ...baseSpec, values: next });
+    } else if (baseSpec?.kind === "literal") {
+      onGeneratorChange({ kind: "choose", values: next });
+    }
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    const next = variants.filter((_, idx) => idx !== index);
+    setVariants(next);
+    if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") {
+      onGeneratorChange({ ...baseSpec, values: next });
+    } else if (baseSpec?.kind === "literal") {
+      onGeneratorChange({ kind: "choose", values: next });
+    }
+  };
+
+  const handleMoveVariant = (index: number, delta: number) => {
+    const next = [...variants];
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    const [moving] = next.splice(index, 1);
+    next.splice(target, 0, moving);
+    setVariants(next);
+    if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") {
+      onGeneratorChange({ ...baseSpec, values: next });
+    } else if (baseSpec?.kind === "literal") {
+      onGeneratorChange({ kind: "choose", values: next });
+    }
+  };
+
+  const showVariants =
+    baseSpec?.kind === "choose" || baseSpec?.kind === "cycle" || baseSpec?.kind === "literal";
+  const isNonEnumerable = !showVariants;
+
   return (
-    <div className="inspector-section">
-      <div className="section-title">Slot</div>
-      <label className="field">
-        <span>Content</span>
-        <input
-          className="input"
-          value={text}
-          onChange={(event) => {
-            const next = event.target.value;
-            setText(next);
-            onTextChange(next);
-          }}
-          onBlur={() => onTextCommit(text)}
-          disabled={disableText}
-        />
-      </label>
-      {disableText ? <div className="section-hint">Image slot content is managed by the frame editor.</div> : null}
-      <label className="field">
-        <span>Reserve</span>
-        <input
-          className="input"
-          value={reserve}
-          onChange={(event) => setReserve(event.target.value)}
-          onBlur={() => onPropsChange({ reserve })}
-        />
-      </label>
-      <label className="field">
-        <span>Fit</span>
-        <select
-          className="select"
-          value={fit}
-          onChange={(event) => {
-            setFit(event.target.value);
-            onPropsChange({ fit: event.target.value });
-          }}
-        >
-          {"clip,ellipsis,shrink,scaleDown".split(",").map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Refresh</span>
-        <select
-          className="select"
-          value={refresh}
-          onChange={(event) => {
-            setRefresh(event.target.value);
-            onPropsChange({ refresh: parseRefresh(event.target.value) });
-          }}
-        >
-          <option value="onLoad">On load</option>
-          <option value="onDocstep">Docstep</option>
-          <option value="every">Time</option>
-          <option value="never">Never</option>
-        </select>
-      </label>
+    <div className="inspector-section slot-program-section">
+      <div className="section-title">Slot Program</div>
+      <div className="slot-panels">
+        <div className="slot-panel">
+          <div className="panel-title">Current Value</div>
+          <div className="slot-current">{currentValue || "—"}</div>
+          <div className="slot-runtime">
+            <div className="runtime-row">
+              <span>Docstep</span>
+              <div className="runtime-controls">
+                <button type="button" className="btn btn-ghost btn-xs" onClick={() => onRuntimeChange({ docstep: runtime.docstep - 1 })}>
+                  −
+                </button>
+                <span>{runtime.docstep}</span>
+                <button type="button" className="btn btn-ghost btn-xs" onClick={() => onRuntimeChange({ docstep: runtime.docstep + 1 })}>
+                  +
+                </button>
+              </div>
+            </div>
+            <div className="runtime-row">
+              <span>Time</span>
+              <div className="runtime-controls">
+                <input
+                  className="input input-compact"
+                  type="number"
+                  value={runtime.time}
+                  onChange={(event) => onRuntimeChange({ time: Number(event.target.value) })}
+                />
+                <button type="button" className="btn btn-ghost btn-xs" onClick={() => onRuntimeChange({ time: runtime.time + 1 })}>
+                  +1s
+                </button>
+              </div>
+            </div>
+            <div className="runtime-row">
+              <span>Seed</span>
+              <input
+                className="input input-compact"
+                type="number"
+                value={runtime.seed}
+                onChange={(event) => onRuntimeChange({ seed: Number(event.target.value) })}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="slot-panel">
+          <div className="panel-title">Source / Generator</div>
+          <div className="slot-source">
+            {generatorDetails.length ? (
+              generatorDetails.map((detail) => (
+                <div key={detail.label} className="slot-source-row">
+                  <span>{detail.label}</span>
+                  <span>{detail.value}</span>
+                </div>
+              ))
+            ) : (
+              <div className="section-hint">No generator metadata available.</div>
+            )}
+          </div>
+          {baseSpec?.kind === "assetsPick" ? (
+            <label className="field">
+              <span>Tags</span>
+              <input
+                className="input"
+                value={tagsDraft.join(", ")}
+                onChange={(event) => {
+                  const next = event.target.value
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean);
+                  setTagsDraft(next);
+                  onGeneratorChange({ ...baseSpec, tags: next });
+                }}
+              />
+            </label>
+          ) : null}
+          {baseSpec?.kind === "poisson" ? (
+            <label className="field">
+              <span>Rate / sec</span>
+              <input
+                className="input"
+                type="number"
+                value={rateDraft}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setRateDraft(next);
+                  onGeneratorChange({ ...baseSpec, ratePerSec: next });
+                }}
+              />
+            </label>
+          ) : null}
+        </div>
+        <div className="slot-panel">
+          <div className="panel-title">Variants / Schedule</div>
+          {showVariants ? (
+            <div className="variant-list">
+              {variants.map((value, index) => (
+                <div key={index} className="variant-row">
+                  <input
+                    className="input"
+                    value={value}
+                    onChange={(event) => handleVariantChange(index, event.target.value)}
+                  />
+                  <div className="variant-actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => handleMoveVariant(index, -1)}
+                      disabled={index === 0}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => handleMoveVariant(index, 1)}
+                      disabled={index === variants.length - 1}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => handleRemoveVariant(index)}
+                      disabled={variants.length <= 1 && baseSpec?.kind === "literal"}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button type="button" className="btn btn-ghost btn-xs" onClick={handleAddVariant}>
+                Add variant
+              </button>
+            </div>
+          ) : isNonEnumerable ? (
+            <div className="slot-non-enum">
+              {baseSpec?.kind === "assetsPick" ? (
+                <div className="slot-candidates">
+                  <div className="slot-candidates-title">Candidates</div>
+                  {candidateAssets.length ? (
+                    <ul>
+                      {candidateAssets.map((asset) => (
+                        <li key={asset.id}>{asset.name}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="section-hint">No assets match the current tags.</div>
+                  )}
+                </div>
+              ) : null}
+              <div className="slot-sim">
+                <div className="slot-candidates-title">Simulate next 12</div>
+                <div className="slot-sim-table">
+                  <div className="slot-sim-head">
+                    <span>Docstep</span>
+                    <span>Time</span>
+                    <span>Value</span>
+                  </div>
+                  {simulation.map((row) => (
+                    <div key={`${row.docstep}-${row.time}`} className="slot-sim-row">
+                      <span>{row.docstep}</span>
+                      <span>{row.time}</span>
+                      <span>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="section-hint">Generator details are unavailable.</div>
+          )}
+        </div>
+      </div>
+      <div className="slot-props">
+        <label className="field">
+          <span>Reserve</span>
+          <input
+            className="input"
+            value={reserve}
+            onChange={(event) => setReserve(event.target.value)}
+            onBlur={() => onPropsChange({ reserve })}
+          />
+        </label>
+        <label className="field">
+          <span>Fit</span>
+          <select
+            className="select"
+            value={fit}
+            onChange={(event) => {
+              setFit(event.target.value);
+              onPropsChange({ fit: event.target.value });
+            }}
+          >
+            {"clip,ellipsis,shrink,scaleDown".split(",").map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Refresh</span>
+          <select
+            className="select"
+            value={refresh}
+            onChange={(event) => {
+              setRefresh(event.target.value);
+              onPropsChange({ refresh: parseRefresh(event.target.value) });
+            }}
+          >
+            <option value="onLoad">On load</option>
+            <option value="onDocstep">Docstep</option>
+            <option value="every">Time</option>
+            <option value="never">Never</option>
+          </select>
+        </label>
+      </div>
     </div>
   );
 }
@@ -1927,6 +2424,397 @@ function renderSaveStatus(status: "idle" | "saving" | "saved" | "error", dirty: 
   return "Saved ✓";
 }
 
+type SlotGeneratorSpec =
+  | { kind: "literal"; value: string }
+  | { kind: "choose"; values: string[] }
+  | { kind: "cycle"; values: string[]; period?: number }
+  | { kind: "assetsPick"; tags: string[]; bank?: string }
+  | { kind: "poisson"; ratePerSec: number }
+  | { kind: "at"; times: number[]; values: string[] }
+  | { kind: "every"; amount: number; unit?: string; values?: string[] }
+  | { kind: "unknown"; summary: string };
+
+type SlotProgram = {
+  spec: SlotGeneratorSpec | null;
+  raw: unknown;
+  source: { kind: "prop" | "text"; key?: string; textId?: string };
+};
+
+type SlotSimulationRow = { docstep: number; time: number; value: string };
+
+type CaptionTarget = { kind: "prop" | "text"; id: string; value: string };
+
+function readSlotProgram(node: DocumentNode): SlotProgram {
+  const props = node.props ?? {};
+  const textChild = node.children?.find((child) => child.kind === "text");
+  const propEntry = findSlotGeneratorProp(props);
+  if (propEntry) {
+    const expr = unwrapExpression(propEntry.value);
+    const spec = parseGeneratorSpec(expr);
+    return {
+      spec,
+      raw: propEntry.value,
+      source: { kind: "prop", key: propEntry.key },
+    };
+  }
+  if (textChild) {
+    const value = getLiteralString(textChild.props?.content) ?? "";
+    return {
+      spec: { kind: "literal", value },
+      raw: textChild.props?.content ?? null,
+      source: { kind: "text", textId: textChild.id },
+    };
+  }
+  const literalContent = getLiteralString(props.content as any);
+  if (literalContent !== null) {
+    return {
+      spec: { kind: "literal", value: literalContent ?? "" },
+      raw: props.content ?? null,
+      source: { kind: "prop", key: "content" },
+    };
+  }
+  return { spec: null, raw: null, source: { kind: "prop" } };
+}
+
+function resolveSlotDisplayText(node: DocumentNode, runtime: { seed: number; time: number; docstep: number }, assets: AssetItem[]): string {
+  const program = readSlotProgram(node);
+  const resolved = resolveSlotValue(program.spec, runtime, node.id, assets);
+  if (resolved !== null && resolved !== undefined) return resolved;
+  const textChild = node.children?.find((child) => child.kind === "text");
+  return getLiteralString(textChild?.props?.content) ?? "";
+}
+
+function resolveSlotValue(
+  spec: SlotGeneratorSpec | null,
+  runtime: { seed: number; time: number; docstep: number },
+  slotId: string,
+  assets: AssetItem[],
+): string | null {
+  if (!spec) return null;
+  if (spec.kind === "literal") return spec.value;
+  if (spec.kind === "choose") {
+    if (!spec.values.length) return "";
+    const index = seededIndex(runtime, slotId, spec.values.length);
+    return spec.values[index] ?? "";
+  }
+  if (spec.kind === "cycle") {
+    if (!spec.values.length) return "";
+    const index = Math.abs(runtime.docstep) % spec.values.length;
+    return spec.values[index] ?? "";
+  }
+  if (spec.kind === "assetsPick") {
+    const candidates = filterAssetsByTags(assets, spec.tags);
+    if (!candidates.length) return "";
+    const index = seededIndex(runtime, slotId, candidates.length);
+    const asset = candidates[index];
+    return asset?.name ?? asset?.path ?? "";
+  }
+  if (spec.kind === "poisson") {
+    const rate = Math.max(0, spec.ratePerSec);
+    const chance = Math.min(1, rate / 2);
+    const random = seededRandom(runtime, slotId);
+    return random < chance ? "event" : "—";
+  }
+  if (spec.kind === "at") {
+    if (!spec.values.length) return "";
+    const index = seededIndex(runtime, slotId, spec.values.length);
+    return spec.values[index] ?? "";
+  }
+  if (spec.kind === "every") {
+    if (spec.values?.length) {
+      const index = seededIndex(runtime, slotId, spec.values.length);
+      return spec.values[index] ?? "";
+    }
+    return "";
+  }
+  return null;
+}
+
+function simulateSlotValues(
+  spec: SlotGeneratorSpec | null,
+  runtime: { seed: number; time: number; docstep: number },
+  slotId: string,
+  assets: AssetItem[],
+  count = 12,
+): SlotSimulationRow[] {
+  if (!spec) return [];
+  const rows: SlotSimulationRow[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const nextRuntime = {
+      ...runtime,
+      docstep: runtime.docstep + i,
+      time: Math.round((runtime.time + i) * 100) / 100,
+    };
+    const value = resolveSlotValue(spec, nextRuntime, slotId, assets) ?? "";
+    rows.push({ docstep: nextRuntime.docstep, time: nextRuntime.time, value: value || "—" });
+  }
+  return rows;
+}
+
+function filterAssetsByTags(assets: AssetItem[], tags: string[]): AssetItem[] {
+  if (!tags.length) return assets;
+  return assets.filter((asset) => tags.every((tag) => asset.tags.includes(tag)));
+}
+
+function describeGenerator(spec: SlotGeneratorSpec | null): { label: string; value: string }[] {
+  if (!spec) return [];
+  if (spec.kind === "literal") return [{ label: "kind", value: "literal" }, { label: "value", value: spec.value }];
+  if (spec.kind === "choose" || spec.kind === "cycle") {
+    return [
+      { label: "kind", value: spec.kind },
+      { label: "count", value: String(spec.values.length) },
+      { label: "values", value: spec.values.join(" · ") || "—" },
+    ];
+  }
+  if (spec.kind === "assetsPick") {
+    return [
+      { label: "kind", value: "assets.pick" },
+      { label: "tags", value: spec.tags.join(", ") || "—" },
+    ];
+  }
+  if (spec.kind === "poisson") {
+    return [
+      { label: "kind", value: "poisson" },
+      { label: "rate/sec", value: String(spec.ratePerSec) },
+    ];
+  }
+  if (spec.kind === "at") {
+    return [
+      { label: "kind", value: "at" },
+      { label: "values", value: spec.values.join(" · ") || "—" },
+    ];
+  }
+  if (spec.kind === "every") {
+    return [
+      { label: "kind", value: "every" },
+      { label: "amount", value: String(spec.amount) },
+      { label: "unit", value: spec.unit ?? "—" },
+    ];
+  }
+  return [{ label: "kind", value: "unknown" }, { label: "summary", value: spec.summary }];
+}
+
+function findSlotGeneratorProp(props: Record<string, unknown>): { key: string; value: unknown } | null {
+  const preferred = ["generator", "source", "program", "content", "value"];
+  for (const key of preferred) {
+    if (!(key in props)) continue;
+    const value = (props as Record<string, unknown>)[key];
+    if (key === "content" && isLiteralProp(value)) continue;
+    if (value !== undefined) return { key, value };
+  }
+  for (const [key, value] of Object.entries(props)) {
+    if (IGNORED_SLOT_PROP_KEYS.has(key)) continue;
+    if (value && typeof value === "object" && !(value as any).kind) {
+      return { key, value };
+    }
+    if (!isLiteralProp(value)) return { key, value };
+  }
+  return null;
+}
+
+function unwrapExpression(value: any): any {
+  if (!value || typeof value !== "object") return value;
+  if (value.kind === "LiteralValue") return { kind: "Literal", value: value.value };
+  if (value.kind === "ExpressionValue" || value.kind === "ExprValue") {
+    return value.expr ?? value.expression ?? value.value ?? value;
+  }
+  return value;
+}
+
+function parseGeneratorSpec(expr: any): SlotGeneratorSpec | null {
+  if (!expr) return null;
+  if (expr.kind === "choose" && Array.isArray(expr.values)) {
+    return { kind: "choose", values: expr.values.map((value: any) => String(value)) };
+  }
+  if (expr.kind === "cycle" && Array.isArray(expr.values)) {
+    return { kind: "cycle", values: expr.values.map((value: any) => String(value)) };
+  }
+  if (expr.kind === "assetsPick" && Array.isArray(expr.tags)) {
+    return { kind: "assetsPick", tags: expr.tags.map((tag: any) => String(tag)), bank: expr.bank };
+  }
+  if (expr.kind === "poisson" && typeof expr.ratePerSec === "number") {
+    return { kind: "poisson", ratePerSec: expr.ratePerSec };
+  }
+  if (expr.kind === "literal" && "value" in expr) {
+    return { kind: "literal", value: String(expr.value ?? "") };
+  }
+  if (expr.kind === "Literal") {
+    return { kind: "literal", value: String(expr.value ?? "") };
+  }
+  if (expr.kind === "CallExpression") {
+    const callee = getCalleeName(expr.callee);
+    const args = Array.isArray(expr.args) ? expr.args : [];
+    if (!callee) return { kind: "unknown", summary: "call" };
+    if (callee === "choose" || callee === "cycle") {
+      const values = extractStringList(args);
+      return { kind: callee, values };
+    }
+    if (callee === "poisson") {
+      const rate = readNumberLiteral(args[0]) ?? 1;
+      return { kind: "poisson", ratePerSec: rate };
+    }
+    if (callee === "at") {
+      const values = extractStringList(args.slice(1));
+      const times = extractNumberList(args.slice(0, 1));
+      return { kind: "at", times, values };
+    }
+    if (callee === "every") {
+      const amount = readNumberLiteral(args[0]) ?? 1;
+      const values = extractStringList(args.slice(1));
+      return { kind: "every", amount, unit: undefined, values };
+    }
+    if (callee === "assets.pick" || callee === "assetsPick") {
+      const tags = extractStringList(args);
+      return { kind: "assetsPick", tags };
+    }
+    return { kind: "unknown", summary: callee };
+  }
+  if (expr.kind === "Identifier") {
+    return { kind: "unknown", summary: expr.name ?? "identifier" };
+  }
+  return { kind: "unknown", summary: "expression" };
+}
+
+function getCalleeName(expr: any): string | null {
+  if (!expr || typeof expr !== "object") return null;
+  if (expr.kind === "Identifier") return expr.name;
+  if (expr.kind === "MemberExpression") {
+    const objectName = getCalleeName(expr.object);
+    const property = expr.property;
+    if (!objectName) return property ?? null;
+    return `${objectName}.${property ?? ""}`.replace(/\.$/, "");
+  }
+  return null;
+}
+
+function extractStringList(args: any[]): string[] {
+  if (!args.length) return [];
+  if (args.length === 1) {
+    const literalArray = readArrayLiteral(args[0]);
+    if (literalArray.length) return literalArray;
+  }
+  return args.map((arg) => readStringLiteral(arg)).filter((value): value is string => typeof value === "string");
+}
+
+function extractNumberList(args: any[]): number[] {
+  return args.map((arg) => readNumberLiteral(arg)).filter((value): value is number => typeof value === "number");
+}
+
+function readArrayLiteral(expr: any): string[] {
+  if (!expr) return [];
+  if (expr.kind === "Literal" && Array.isArray(expr.value)) {
+    return expr.value.map((value: any) => String(value));
+  }
+  return [];
+}
+
+function readStringLiteral(expr: any): string | null {
+  if (!expr) return null;
+  if (expr.kind === "Literal" && (typeof expr.value === "string" || typeof expr.value === "number")) {
+    return String(expr.value);
+  }
+  return null;
+}
+
+function readNumberLiteral(expr: any): number | null {
+  if (!expr) return null;
+  if (expr.kind === "Literal" && typeof expr.value === "number") return expr.value;
+  if (expr.kind === "Literal" && typeof expr.value === "string") {
+    const parsed = Number(expr.value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+function seededIndex(runtime: { seed: number; time: number; docstep: number }, slotId: string, length: number): number {
+  if (length <= 0) return 0;
+  const base = hashString(slotId) + runtime.seed * 97 + runtime.docstep * 13 + Math.floor(runtime.time) * 3;
+  const hashed = hashNumber(base);
+  return Math.abs(hashed) % length;
+}
+
+function seededRandom(runtime: { seed: number; time: number; docstep: number }, slotId: string): number {
+  const base = hashString(slotId) + runtime.seed * 131 + runtime.docstep * 17 + Math.floor(runtime.time);
+  const hashed = hashNumber(base);
+  return (hashed >>> 0) / 4294967295;
+}
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+function hashNumber(value: number): number {
+  let x = value | 0;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  return x;
+}
+
+function isLiteralProp(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && (value as any).kind === "LiteralValue");
+}
+
+function resolveCaptionTarget(node: DocumentNode): CaptionTarget | null {
+  const propCaption = getLiteralString(node.props?.caption);
+  if (propCaption !== null) return { kind: "prop", id: node.id, value: propCaption ?? "" };
+  const captionNode = findCaptionTextNode(node);
+  if (captionNode) {
+    return {
+      kind: "text",
+      id: captionNode.id,
+      value: getLiteralString(captionNode.props?.content) ?? extractPlainText(captionNode),
+    };
+  }
+  return null;
+}
+
+function findCaptionTextNode(node: DocumentNode): DocumentNode | null {
+  let fallback: DocumentNode | null = null;
+  const visit = (current: DocumentNode): DocumentNode | null => {
+    if (current.kind === "text") {
+      const role = getLiteralString(current.props?.role) ?? "";
+      const style = getLiteralString(current.props?.style) ?? "";
+      if (/caption/i.test(role) || /caption/i.test(style)) return current;
+      if (!fallback) fallback = current;
+    }
+    for (const child of current.children ?? []) {
+      const found = visit(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(node) ?? fallback;
+}
+
+function isDebugEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("debug") === "1") return true;
+  return window.localStorage.getItem("flux-editor-debug") === "1";
+}
+
+const IGNORED_SLOT_PROP_KEYS = new Set([
+  "reserve",
+  "fit",
+  "refresh",
+  "frame",
+  "src",
+  "title",
+  "caption",
+  "label",
+  "style",
+  "role",
+  "url",
+  "href",
+  "name",
+]);
+
 function assetPreviewUrl(asset: AssetItem) {
   if (asset.id) return `/assets/${encodeURIComponent(asset.id)}`;
   if (asset.path) return `/asset?src=${encodeURIComponent(asset.path)}`;
@@ -2023,45 +2911,15 @@ function findFirstChild(node: DocumentNode, kind: string): DocumentNode | null {
   return null;
 }
 
-function buildSlotTextNode(node: DocumentNode, text: string, ids: Set<string>): DocumentNode {
-  const safe = sanitizeSlotText(text);
-  const textChild = node.children?.find((child) => child.kind === "text");
-  const textId = textChild?.id ?? nextId("slotText", ids);
-  return {
-    ...node,
-    children: [
-      {
-        id: textId,
-        kind: "text",
-        props: { content: { kind: "LiteralValue", value: safe } },
-        children: [],
-      },
-    ],
-  };
+function isSlotContext(entry: DocIndexEntry, index: Map<string, DocIndexEntry>): boolean {
+  let current: DocIndexEntry | null = entry;
+  while (current) {
+    if (current.node.kind === "slot" || current.node.kind === "inline_slot") return true;
+    current = current.parentId ? index.get(current.parentId) ?? null : null;
+  }
+  return false;
 }
 
-function updateSlotProps(
-  node: DocumentNode,
-  payload: { reserve?: string; fit?: string; refresh?: RefreshPolicy },
-): DocumentNode {
-  const props: Record<string, NodePropValue> = { ...(node.props ?? {}) };
-  if (payload.reserve !== undefined) props.reserve = { kind: "LiteralValue", value: payload.reserve };
-  if (payload.fit !== undefined) props.fit = { kind: "LiteralValue", value: payload.fit };
-  return {
-    ...node,
-    props,
-    refresh: payload.refresh ?? node.refresh,
-  };
-}
-
-function patchPreviewSlotText(frame: HTMLIFrameElement | null, entry: DocIndexEntry, text: string) {
-  const frameDoc = frame?.contentDocument;
-  if (!frameDoc) return;
-  const slotEl = findFluxElement(frameDoc, entry.id);
-  if (!slotEl) return;
-  ensureFluxAttributes(slotEl, entry.id, entry.node.kind);
-  patchSlotText(slotEl, text, entry.node.kind === "inline_slot");
-}
 
 function resolveFrameEntry(
   entry: DocIndexEntry | null,

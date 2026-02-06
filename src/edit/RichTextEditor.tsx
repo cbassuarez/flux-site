@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Node, type Editor as EditorInstance } from "@tiptap/core";
+import { Node, type Editor as EditorInstance, type JSONContent } from "@tiptap/core";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
@@ -10,12 +10,11 @@ import Code from "@tiptap/extension-code";
 import Link from "@tiptap/extension-link";
 import History from "@tiptap/extension-history";
 import type { DocumentNode } from "@flux-lang/core";
-import { fluxTextToTiptap, tiptapToFluxText, type InlineSlotAttrs } from "./richText";
+import { fluxTextToTiptap, type InlineSlotAttrs } from "./richText";
 
 type RichTextEditorProps = {
   node: DocumentNode;
-  existingIds: Set<string>;
-  onUpdate: (node: DocumentNode) => void;
+  onUpdate: (json: JSONContent) => void;
   onInlineSlotSelect: (id: string | null) => void;
   onReady?: (editor: EditorInstance | null) => void;
   highlightQuery?: string;
@@ -73,7 +72,6 @@ function InlineSlotView(props: any) {
 
 export default function RichTextEditor({
   node,
-  existingIds,
   onUpdate,
   onInlineSlotSelect,
   onReady,
@@ -82,11 +80,6 @@ export default function RichTextEditor({
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkValue, setLinkValue] = useState("");
   const isHydrating = useRef(false);
-  const idPoolRef = useRef<Set<string>>(new Set(existingIds));
-
-  useEffect(() => {
-    idPoolRef.current = new Set(existingIds);
-  }, [node.id, existingIds]);
 
   const content = useMemo(() => fluxTextToTiptap(node), [node]);
 
@@ -105,10 +98,7 @@ export default function RichTextEditor({
     content,
     onUpdate: ({ editor }) => {
       if (isHydrating.current) return;
-      const nextIds = new Set(idPoolRef.current);
-      const nextNode = tiptapToFluxText(node, editor.getJSON(), nextIds);
-      idPoolRef.current = nextIds;
-      onUpdate(nextNode);
+      onUpdate(editor.getJSON());
     },
   });
 
