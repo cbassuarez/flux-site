@@ -102,7 +102,7 @@ describe("doc transforms", () => {
         ],
       },
     } as any;
-    const updated = updateInlineSlot(doc, "slot1", { text: "updated" });
+    const updated = updateInlineSlot(doc, "slot1", { text: "updated", transition: { kind: "fade", durationMs: 220 } });
 
     const originalOther = stripLoc(findNodeById(doc.body?.nodes ?? [], "t2"));
     const updatedOther = stripLoc(findNodeById(updated.body?.nodes ?? [], "t2"));
@@ -111,6 +111,7 @@ describe("doc transforms", () => {
     const slot = findNodeById(updated.body?.nodes ?? [], "slot1");
     const slotText = slot?.children?.find((child) => child.kind === "text");
     expect((slotText?.props?.content as any)?.value).toBe("updated");
+    expect((slot as any)?.transition).toEqual({ kind: "fade", durationMs: 220 });
   });
 
   it("reorders nodes within a parent without changing ids", () => {

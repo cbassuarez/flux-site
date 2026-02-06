@@ -47,10 +47,12 @@ export type RuntimeInputs = {
   docstep: number;
 };
 
+type SlotTransition = { kind: string; [key: string]: unknown };
+
 export type EditorTransform =
   | { type: "setTextNodeContent"; id: string; text?: string; richText?: JSONContent }
   | { type: "setNodeProps"; id: string; props: Record<string, unknown> }
-  | { type: "setSlotProps"; id: string; reserve?: string; fit?: string; refresh?: RefreshPolicy }
+  | { type: "setSlotProps"; id: string; reserve?: string; fit?: string; refresh?: RefreshPolicy; transition?: SlotTransition }
   | { type: "setSlotGenerator"; id: string; generator: Record<string, unknown> }
   | { type: "reorderNode"; id: string; parentId: string; index: number }
   | { type: "replaceNode"; id: string; node: DocumentNode }
@@ -473,6 +475,7 @@ function buildTransformRequest(transform: EditorTransform | TransformRequest, do
         reserve: transform.reserve,
         fit: transform.fit,
         refresh: transform.refresh,
+        transition: transform.transition,
       },
     };
     const fallback = buildSlotPropsFallback(transform, doc);
@@ -549,6 +552,7 @@ function buildSlotPropsFallback(
     ...entry.node,
     props: nextProps,
     refresh: transform.refresh ?? entry.node.refresh,
+    transition: transform.transition ?? (entry.node as any).transition,
   };
   return { op: "replaceNode", args: { id: transform.id, node: nextNode } };
 }

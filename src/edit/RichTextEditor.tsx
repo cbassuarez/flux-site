@@ -33,6 +33,7 @@ const InlineSlot = Node.create({
       reserve: { default: "" },
       fit: { default: "" },
       refresh: { default: "" },
+      transition: { default: "" },
       textId: { default: null },
     };
   },

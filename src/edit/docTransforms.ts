@@ -6,6 +6,7 @@ export type InlineSlotUpdate = {
   reserve?: string;
   fit?: string;
   refresh?: RefreshPolicy;
+  transition?: { kind: string; [key: string]: unknown };
 };
 
 export type SlotUpdate = InlineSlotUpdate;
@@ -184,6 +185,7 @@ function updateNode(
       ...node,
       props,
       refresh: update.refresh ?? node.refresh,
+      transition: update.transition ?? (node as any).transition,
       children,
     };
   }

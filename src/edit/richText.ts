@@ -8,6 +8,7 @@ export type InlineSlotAttrs = {
   reserve?: string;
   fit?: string;
   refresh?: string;
+  transition?: string;
   textId?: string;
 };
 
@@ -98,6 +99,7 @@ function appendInline(node: DocumentNode, marks: any[], out: JSONContent[]) {
         reserve: getLiteralString(node.props?.reserve) ?? undefined,
         fit: getLiteralString(node.props?.fit) ?? undefined,
         refresh: node.refresh ? refreshToAttr(node.refresh) : undefined,
+        transition: (node as any).transition ? transitionToAttr((node as any).transition) : undefined,
         textId: textNode?.id,
       } as InlineSlotAttrs,
     });
@@ -170,6 +172,7 @@ function buildInlineSlot(attrs: InlineSlotAttrs, existingIds: Set<string>): Docu
     kind: "inline_slot",
     props,
     refresh: parseRefreshAttr(attrs.refresh),
+    transition: parseTransitionAttr(attrs.transition),
     children: [
       {
         id: textId,
@@ -202,20 +205,161 @@ function nextId(prefix: string, ids: Set<string>): string {
 }
 
 function refreshToAttr(policy: RefreshPolicy): string {
-  if (policy.kind === "every") return `every(${policy.amount}${policy.unit})`;
-  if (policy.kind === "onDocstep") return "onDocstep";
-  if (policy.kind === "never") return "never";
-  return "onLoad";
+  const kind = (policy as any).kind;
+  if (kind === "docstep" || kind === "onDocstep") return "docstep";
+  if (kind === "never" || kind === "onLoad") return "never";
+  if (kind === "every") {
+    const duration = `${(policy as any).amount}${(policy as any).unit ?? "s"}`;
+    const phase = (policy as any).phase;
+    if (phase !== undefined) {
+      const phaseUnit = (policy as any).phaseUnit ?? (policy as any).unit ?? "s";
+      return `every(${duration}, ${phase}${phaseUnit})`;
+    }
+    return `every(${duration})`;
+  }
+  if (kind === "at") {
+    const time = `${(policy as any).time}${(policy as any).unit ?? "s"}`;
+    return `at(${time})`;
+  }
+  if (kind === "atEach") {
+    const times = Array.isArray((policy as any).times) ? (policy as any).times : [];
+    const unit = (policy as any).unit ?? "s";
+    return `atEach(${times.map((t: any) => `${t}${unit}`).join(", ")})`;
+  }
+  if (kind === "poisson") return `poisson(${(policy as any).ratePerSec ?? 0})`;
+  if (kind === "chance") {
+    const p = (policy as any).p ?? 0;
+    const every = (policy as any).every;
+    if (!every || every.kind === "docstep") return `chance(${p}, docstep)`;
+    if (every.kind === "every") {
+      return `chance(${p}, ${every.amount}${every.unit ?? "s"})`;
+    }
+    return `chance(${p}, docstep)`;
+  }
+  return "docstep";
 }
 
 function parseRefreshAttr(value?: string): RefreshPolicy | undefined {
   if (!value) return undefined;
-  if (value === "onDocstep") return { kind: "onDocstep" };
-  if (value === "never") return { kind: "never" };
-  if (value === "onLoad") return { kind: "onLoad" };
-  const match = value.match(/^every\((\d+)([a-zA-Z]+)\)$/);
-  if (match) {
-    return { kind: "every", amount: Number(match[1]), unit: match[2] as any };
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed === "docstep" || trimmed === "onDocstep") return { kind: "docstep" } as any;
+  if (trimmed === "never" || trimmed === "onLoad") return { kind: "never" } as any;
+
+  const everyMatch = trimmed.match(/^every\(([^,\)]+)(?:,\s*([^\)]+))?\)$/i);
+  if (everyMatch) {
+    const duration = parseDuration(everyMatch[1]);
+    if (!duration) return undefined;
+    const phase = everyMatch[2] ? parseDuration(everyMatch[2]) : null;
+    return {
+      kind: "every",
+      amount: duration.amount,
+      unit: duration.unit,
+      phase: phase?.amount,
+      phaseUnit: phase?.unit,
+    } as any;
+  }
+
+  const atMatch = trimmed.match(/^at\(([^\)]+)\)$/i);
+  if (atMatch) {
+    const time = parseDuration(atMatch[1]);
+    if (!time) return undefined;
+    return { kind: "at", time: time.amount, unit: time.unit } as any;
+  }
+
+  const atEachMatch = trimmed.match(/^atEach\((.+)\)$/i);
+  if (atEachMatch) {
+    const raw = atEachMatch[1].replace(/[\[\]]/g, "");
+    const parts = raw.split(",").map((part) => part.trim()).filter(Boolean);
+    const parsed = parts.map((part) => parseDuration(part)).filter(Boolean) as Array<{
+      amount: number;
+      unit: string;
+    }>;
+    if (!parsed.length) return undefined;
+    const firstUnit = parsed[0].unit;
+    const mixed = parsed.some((item) => item.unit !== firstUnit);
+    if (!mixed) {
+      return { kind: "atEach", times: parsed.map((item) => item.amount), unit: firstUnit } as any;
+    }
+    return {
+      kind: "atEach",
+      times: parsed.map((item) => toSeconds(item.amount, item.unit)),
+      unit: "s",
+    } as any;
+  }
+
+  const poissonMatch = trimmed.match(/^poisson\(([^\)]+)\)$/i);
+  if (poissonMatch) {
+    const rate = Number(poissonMatch[1]);
+    if (!Number.isFinite(rate)) return undefined;
+    return { kind: "poisson", ratePerSec: rate } as any;
+  }
+
+  const chanceMatch = trimmed.match(/^chance\(([^,\)]+)(?:,\s*([^\)]+))?\)$/i);
+  if (chanceMatch) {
+    const p = Number(chanceMatch[1]);
+    if (!Number.isFinite(p)) return undefined;
+    const everyRaw = chanceMatch[2]?.trim();
+    if (!everyRaw || everyRaw === "docstep") {
+      return { kind: "chance", p, every: { kind: "docstep" } } as any;
+    }
+    const duration = parseDuration(everyRaw);
+    if (!duration) return undefined;
+    return { kind: "chance", p, every: { kind: "every", amount: duration.amount, unit: duration.unit } } as any;
+  }
+
+  return undefined;
+}
+
+function transitionToAttr(spec: any): string | undefined {
+  if (!spec || typeof spec !== "object") return undefined;
+  if (spec.kind === "none") return "none";
+  if (spec.kind === "appear") return "appear()";
+  if (spec.kind === "fade") return `fade(${spec.durationMs}ms, ${spec.ease ?? "linear"})`;
+  if (spec.kind === "wipe")
+    return `wipe(${spec.direction ?? "right"}, ${spec.durationMs}ms, ${spec.ease ?? "linear"})`;
+  if (spec.kind === "flash") return `flash(${spec.durationMs}ms)`;
+  return undefined;
+}
+
+function parseTransitionAttr(value?: string): any | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed === "none") return { kind: "none" };
+  if (trimmed.startsWith("appear")) return { kind: "appear" };
+  const fadeMatch = trimmed.match(/^fade\((\d+)ms(?:,\s*([a-zA-Z]+))?\)$/i);
+  if (fadeMatch) {
+    return { kind: "fade", durationMs: Number(fadeMatch[1]), ease: fadeMatch[2] ?? "linear" };
+  }
+  const wipeMatch = trimmed.match(/^wipe\((left|right|up|down),\s*(\d+)ms(?:,\s*([a-zA-Z]+))?\)$/i);
+  if (wipeMatch) {
+    return {
+      kind: "wipe",
+      direction: wipeMatch[1],
+      durationMs: Number(wipeMatch[2]),
+      ease: wipeMatch[3] ?? "linear",
+    };
+  }
+  const flashMatch = trimmed.match(/^flash\((\d+)ms\)$/i);
+  if (flashMatch) {
+    return { kind: "flash", durationMs: Number(flashMatch[1]) };
   }
   return undefined;
+}
+
+function parseDuration(value: string): { amount: number; unit: string } | null {
+  const match = value.trim().match(/^(-?\\d*\\.?\\d+)\\s*(ms|s|m)$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  return { amount, unit: match[2].toLowerCase() };
+}
+
+function toSeconds(amount: number, unit: string): number {
+  if (!Number.isFinite(amount)) return 0;
+  const normalized = unit.toLowerCase();
+  if (normalized === "ms") return amount / 1000;
+  if (normalized === "m") return amount * 60;
+  return amount;
 }

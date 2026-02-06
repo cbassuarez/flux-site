@@ -35,6 +35,90 @@
   background: var(--editor-surface-app);
 }
 
+.editor-transport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px var(--editor-space-4);
+  border-bottom: 1px solid var(--editor-line-hairline);
+  background: var(--editor-surface-app);
+}
+
+.transport-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--editor-radius-sm);
+  border: 1px solid var(--editor-line-muted);
+  background: var(--editor-surface-panel);
+}
+
+.transport-group.transport-time {
+  flex: 1 1 320px;
+}
+
+.transport-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--editor-text-muted);
+}
+
+.transport-toggle {
+  display: inline-flex;
+  border: 1px solid var(--editor-line-hairline);
+  border-radius: var(--editor-radius-sm);
+  overflow: hidden;
+}
+
+.transport-tab {
+  border: none;
+  background: transparent;
+  color: var(--editor-text-muted);
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.transport-tab.is-active {
+  color: var(--editor-text-fg);
+  background: var(--editor-surface-hover);
+}
+
+.transport-scrub {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--editor-accent);
+}
+
+.transport-time-readout {
+  font-size: 11px;
+  color: var(--editor-text-fg);
+  min-width: 48px;
+  text-align: right;
+}
+
+.transport-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transport-toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--editor-text-muted);
+}
+
+.select.select-compact {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
 .toolbar-left,
 .toolbar-center,
 .toolbar-right {
@@ -543,6 +627,13 @@
   color: var(--editor-text-fg);
 }
 
+.slot-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .inspector-title {
   font-size: 14px;
   font-weight: 600;
@@ -607,12 +698,49 @@
 }
 
 .slot-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 8px;
   border-radius: var(--editor-radius-sm);
   background: var(--editor-surface-hover);
   font-size: 13px;
   font-weight: 600;
   color: var(--editor-text-fg);
+}
+
+.slot-current-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slot-current-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-current-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--editor-text-muted);
+}
+
+.slot-current-media {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--editor-line-hairline);
 }
 
 .slot-runtime {
@@ -659,6 +787,23 @@
   text-align: right;
 }
 
+.slot-subtitle {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--editor-text-muted);
+}
+
+.slot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-input {
+  min-width: 120px;
+}
+
 .variant-list {
   display: grid;
   gap: 6px;
@@ -688,14 +833,33 @@
   color: var(--editor-text-muted);
 }
 
-.slot-candidates ul {
-  list-style: none;
-  padding: 0;
-  margin: 4px 0 0;
+.slot-candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.slot-candidate {
   display: grid;
   gap: 4px;
-  font-size: 11px;
-  color: var(--editor-text-fg);
+  font-size: 10px;
+  color: var(--editor-text-muted);
+}
+
+.slot-candidate-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--editor-radius-xs);
+  border: 1px solid var(--editor-line-hairline);
+  background-size: cover;
+  background-position: center;
+}
+
+.slot-candidate-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .slot-sim-table {
@@ -708,7 +872,7 @@
 .slot-sim-head,
 .slot-sim-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr;
+  grid-template-columns: 0.8fr 1fr 1.5fr 1fr;
   gap: 6px;
 }
 
@@ -722,6 +886,38 @@
 .slot-props {
   display: grid;
   gap: 8px;
+}
+
+.refresh-editor,
+.transition-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.slot-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.refresh-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.refresh-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.field-error {
+  font-size: 11px;
+  color: var(--editor-status-error);
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--editor-text-muted);
 }
 
 .frame-section {

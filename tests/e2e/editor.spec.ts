@@ -6,6 +6,7 @@ type DocNode = {
   props?: Record<string, any>;
   children?: DocNode[];
   refresh?: any;
+  transition?: any;
 };
 
 type FluxDoc = {
@@ -17,8 +18,8 @@ type FluxDoc = {
 };
 
 const DEFAULT_ASSETS = [
-  { id: "asset-1", name: "Asset One", kind: "image", path: "/assets/one.png", tags: ["hero"] },
-  { id: "asset-2", name: "Asset Two", kind: "image", path: "/assets/two.png", tags: ["alt"] },
+  { id: "asset-1", name: "Asset One", kind: "image", path: "/assets/one.png", tags: ["hero", "swap"] },
+  { id: "asset-2", name: "Asset Two", kind: "image", path: "/assets/two.png", tags: ["alt", "swap"] },
 ];
 
 test.describe("Editor editing", () => {
@@ -60,7 +61,7 @@ test.describe("Editor editing", () => {
   });
 
   test("edit slot variants updates current value and preview", async ({ page }) => {
-    const { consoleErrors } = await setupEditorRoutes(page);
+    const { consoleErrors, getDoc } = await setupEditorRoutes(page);
     await page.goto("/edit/");
 
     const frame = page.frameLocator("iframe[title=\"Flux preview\"]");
@@ -69,17 +70,55 @@ test.describe("Editor editing", () => {
 
     const variantInput = page.locator(".variant-row input").first();
     await variantInput.fill("Delta");
+    await page.waitForTimeout(260);
 
-    const currentValue = page.locator(".slot-current");
+    const currentValue = page.locator(".slot-current-value");
     await expect(currentValue).toContainText("Delta");
 
-    const docstepPlus = page.locator(".slot-runtime .runtime-row").first().locator("button").nth(1);
+    const moveDown = page.locator(".variant-row").first().locator("button").nth(1);
+    await moveDown.click();
+    await page.waitForTimeout(260);
+
+    const slotNode = findNode(getDoc(), "slot1");
+    expect(slotNode?.props?.generator?.values?.[0]).toBe("Beta");
+    expect(slotNode?.props?.generator?.values?.[1]).toBe("Delta");
+
+    const docstepPlus = page.locator(".transport-stepper button").nth(1);
     const before = (await currentValue.textContent())?.trim() ?? "";
     await docstepPlus.click();
     await expect(currentValue).not.toHaveText(before);
 
     const updatedValue = (await currentValue.textContent())?.trim() ?? "";
     await expect(frame.locator("[data-flux-id=\"slot1\"]")).toContainText(updatedValue);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test("refresh + transition controls drive playback swaps", async ({ page }) => {
+    const { consoleErrors } = await setupEditorRoutes(page);
+    await page.goto("/edit/");
+
+    const frame = page.frameLocator("iframe[title=\"Flux preview\"]");
+    await expect(frame.locator("[data-flux-id=\"slot2\"]")).toBeVisible();
+    await frame.locator("[data-flux-id=\"slot2\"]").click();
+
+    const refreshPanel = page.locator(".slot-panel").filter({ has: page.locator(".panel-title", { hasText: "Refresh" }) });
+    await refreshPanel.locator("select").first().selectOption("every");
+    await refreshPanel.locator("input").first().fill("1.2s");
+    await refreshPanel.getByRole("button", { name: "Apply" }).click();
+
+    const transitionPanel = page
+      .locator(".slot-panel")
+      .filter({ has: page.locator(".panel-title", { hasText: "Transition" }) });
+    await transitionPanel.locator("select").first().selectOption("fade");
+    await transitionPanel.locator("input").first().fill("220");
+    await transitionPanel.locator("select").nth(1).selectOption("inOut");
+
+    await page.locator(".transport-tab", { hasText: "Playback" }).click();
+
+    const slotEl = frame.locator("[data-flux-id=\"slot2\"]");
+    const before = (await slotEl.textContent()) ?? "";
+    await page.waitForTimeout(1400);
+    await expect(slotEl).not.toHaveText(before);
     expect(consoleErrors).toEqual([]);
   });
 });
@@ -158,7 +197,7 @@ async function setupEditorRoutes(page: Page) {
     });
   });
 
-  return { consoleErrors };
+  return { consoleErrors, getDoc: () => doc };
 }
 
 function createDoc(): FluxDoc {
@@ -186,6 +225,32 @@ function createDoc(): FluxDoc {
                   children: [],
                 },
                 {
+                  id: "textInline",
+                  kind: "text",
+                  props: { content: { kind: "LiteralValue", value: "Inline " } },
+                  children: [
+                    {
+                      id: "inlineSlot1",
+                      kind: "inline_slot",
+                      props: {
+                        generator: { kind: "choose", values: ["Quick", "Adaptive", "Bold"] },
+                        reserve: { kind: "LiteralValue", value: "fixedWidth(8, ch)" },
+                        fit: { kind: "LiteralValue", value: "ellipsis" },
+                      },
+                      refresh: { kind: "docstep" },
+                      transition: { kind: "fade", durationMs: 180, ease: "inOut" },
+                      children: [
+                        {
+                          id: "inlineSlotText1",
+                          kind: "text",
+                          props: { content: { kind: "LiteralValue", value: "Quick" } },
+                          children: [],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
                   id: "figure1",
                   kind: "figure",
                   props: {},
@@ -209,11 +274,32 @@ function createDoc(): FluxDoc {
                     reserve: { kind: "LiteralValue", value: "fixedWidth(8, ch)" },
                     fit: { kind: "LiteralValue", value: "ellipsis" },
                   },
+                  refresh: { kind: "docstep" },
+                  transition: { kind: "fade", durationMs: 200, ease: "inOut" },
                   children: [
                     {
                       id: "slotText1",
                       kind: "text",
                       props: { content: { kind: "LiteralValue", value: "Alpha" } },
+                      children: [],
+                    },
+                  ],
+                },
+                {
+                  id: "slot2",
+                  kind: "slot",
+                  props: {
+                    generator: { kind: "assetsPick", tags: ["swap"] },
+                    reserve: { kind: "LiteralValue", value: "fixedWidth(12, ch)" },
+                    fit: { kind: "LiteralValue", value: "scaleDown" },
+                  },
+                  refresh: { kind: "every", amount: 1, unit: "s" },
+                  transition: { kind: "wipe", direction: "right", durationMs: 220, ease: "inOut" },
+                  children: [
+                    {
+                      id: "slotText2",
+                      kind: "text",
+                      props: { content: { kind: "LiteralValue", value: "Asset" } },
                       children: [],
                     },
                   ],
@@ -229,15 +315,21 @@ function createDoc(): FluxDoc {
 
 function renderPreview(doc: FluxDoc) {
   const text1 = getNodeText(doc, "text1");
+  const textInline = getNodeText(doc, "textInline");
   const caption1 = getNodeText(doc, "caption1");
   return `
     <html>
       <body>
         <div data-flux-id="text1" data-flux-kind="text">${escapeHtml(text1)}</div>
+        <div data-flux-id="textInline" data-flux-kind="text">
+          ${escapeHtml(textInline)}
+          <span data-flux-id="inlineSlot1" data-flux-kind="inline_slot">slot</span>
+        </div>
         <figure data-flux-id="figure1" data-flux-kind="figure">
           <figcaption data-flux-id="caption1" data-flux-kind="text">${escapeHtml(caption1)}</figcaption>
         </figure>
         <span data-flux-id="slot1" data-flux-kind="slot">slot</span>
+        <div data-flux-id="slot2" data-flux-kind="slot">slot</div>
       </body>
     </html>
   `;
@@ -273,6 +365,7 @@ function applyTransform(doc: FluxDoc, request: { op: string; args?: Record<strin
         ...(args.fit ? { fit: { kind: "LiteralValue", value: args.fit } } : {}),
       };
       if (args.refresh) node.refresh = args.refresh;
+      if (args.transition) node.transition = args.transition;
     }
   }
 

@@ -34,9 +34,11 @@ import {
   ensureFluxAttributes,
   ensurePreviewStyle,
   findFluxElement,
-  patchSlotText,
+  patchSlotContent,
+  patchSlotContentWithTransition,
   sanitizeSlotText,
   setPreviewRootClass,
+  clearSlotTransitionLayers,
   type ImageFrame,
 } from "./previewDom";
 import {
@@ -49,6 +51,22 @@ import {
 } from "./transforms";
 import { extractDiagnosticsItems, extractDiagnosticsSummary } from "./diagnostics";
 import { matchSorter } from "match-sorter";
+import {
+  advanceSlotPlaybackState,
+  computeSlotValue,
+  filterAssetsByTags,
+  formatDuration,
+  normalizeRefreshPolicy,
+  parseDurationString,
+  resolveSlotValueForIndex,
+  simulateSlotChanges,
+  type EditorRuntimeInputs,
+  type SlotGeneratorSpec,
+  type SlotPlaybackState,
+  type SlotTransitionSpec,
+  type SlotValue,
+} from "./slotRuntime";
+import { EditorRuntimeProvider, useEditorRuntimeState } from "./runtimeContext";
 
 loader.config({ monaco });
 
@@ -70,6 +88,13 @@ export default function EditorApp() {
   const docState = useSyncExternalStore(docService.subscribe, docService.getState);
   const doc = docState.doc;
   const selectedId = docState.selection.id;
+  const runtimeStore = useEditorRuntimeState({
+    seed: docState.runtime.seed,
+    timeSec: docState.runtime.time,
+    docstep: docState.runtime.docstep,
+  });
+  const runtimeState = runtimeStore.state;
+  const runtimeActions = runtimeStore.actions;
   const [activeMode, setActiveMode] = useState<"preview" | "edit" | "source">("preview");
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
@@ -97,6 +122,15 @@ export default function EditorApp() {
   const [focusedPane, setFocusedPane] = useState("none");
   const [debugEnabled] = useState(() => isDebugEnabled());
 
+  const runtimeInputs = useMemo<EditorRuntimeInputs>(
+    () => ({
+      seed: runtimeState.seed,
+      timeSec: runtimeState.timeSec,
+      docstep: runtimeState.docstep,
+    }),
+    [runtimeState.docstep, runtimeState.seed, runtimeState.timeSec],
+  );
+
   const editorRootRef = useRef<HTMLDivElement | null>(null);
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const previewWrapRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +144,8 @@ export default function EditorApp() {
   const frameDraftRef = useRef<ImageFrame | null>(null);
   const frameDragRef = useRef<{ startX: number; startY: number; frame: ImageFrame } | null>(null);
   const previewCleanupRef = useRef<(() => void) | null>(null);
+  const slotPlaybackRef = useRef<Map<string, SlotPlaybackState>>(new Map());
+  const previewTransitionTimerRef = useRef<number | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const selectNode = useCallback(
@@ -253,6 +289,13 @@ export default function EditorApp() {
   const selectedNode = selectedEntry?.node ?? null;
   const existingIds = useMemo(() => new Set(doc?.index?.keys() ?? []), [doc?.index]);
   const frameEntry = useMemo(() => resolveFrameEntry(selectedEntry, doc?.index), [doc?.index, selectedEntry]);
+  const illegalSlotProps = useMemo(() => {
+    if (!selectedNode) return false;
+    if (selectedNode.kind === "slot" || selectedNode.kind === "inline_slot") return false;
+    const nodeAny = selectedNode as any;
+    const props = selectedNode.props as Record<string, unknown> | undefined;
+    return Boolean(nodeAny.refresh || nodeAny.transition || props?.refresh || props?.transition);
+  }, [selectedNode]);
   const activeTextEntry = useMemo(() => {
     if (!selectedEntry || !doc?.index) return null;
     if (isSlotContext(selectedEntry, doc.index)) return null;
@@ -352,21 +395,69 @@ export default function EditorApp() {
     }
   }, [doc?.index, showIds]);
 
-  const normalizeTextSlots = useCallback(() => {
+  const buildSlotPatch = useCallback((value: SlotValue) => {
+    if (value.kind === "asset") {
+      const src = value.asset ? assetPreviewUrl(value.asset) : "";
+      return { kind: "asset" as const, src, alt: value.label };
+    }
+    return { kind: "text" as const, text: sanitizeSlotText(value.text) };
+  }, []);
+
+  const applySlotSnapshot = useCallback(() => {
     if (!doc?.index) return;
     const frameDoc = previewFrameRef.current?.contentDocument;
     if (!frameDoc) return;
     for (const entry of doc.index.values()) {
       if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") continue;
-      if (entry.node.kind === "slot" && findFirstChild(entry.node, "image")) continue;
-      const resolved = resolveSlotDisplayText(entry.node, docState.runtime, doc?.assetsIndex ?? []);
-      const text = sanitizeSlotText(resolved ?? "");
+      const program = readSlotProgram(entry.node);
+      const { value, hash, bucket, eventIndex } = computeSlotValue(
+        program.spec,
+        (entry.node as any).refresh,
+        runtimeInputs,
+        entry.id,
+        doc?.assetsIndex ?? [],
+      );
       const slotEl = findFluxElement(frameDoc, entry.id);
       if (!slotEl) continue;
       ensureFluxAttributes(slotEl, entry.id, entry.node.kind);
-      patchSlotText(slotEl, text, entry.node.kind === "inline_slot");
+      clearSlotTransitionLayers(slotEl);
+      patchSlotContent(slotEl, buildSlotPatch(value), entry.node.kind === "inline_slot");
+      slotPlaybackRef.current.set(entry.id, { bucket, eventIndex, value, hash });
     }
-  }, [doc?.assetsIndex, doc?.index, docState.runtime]);
+  }, [buildSlotPatch, doc?.assetsIndex, doc?.index, runtimeInputs]);
+
+  const applySlotPlaybackTick = useCallback(() => {
+    if (!doc?.index) return;
+    const frameDoc = previewFrameRef.current?.contentDocument;
+    if (!frameDoc) return;
+    for (const entry of doc.index.values()) {
+      if (entry.node.kind !== "inline_slot" && entry.node.kind !== "slot") continue;
+      const program = readSlotProgram(entry.node);
+      const prev = slotPlaybackRef.current.get(entry.id);
+      const { state, changed } = advanceSlotPlaybackState(
+        prev,
+        program.spec,
+        (entry.node as any).refresh,
+        runtimeInputs,
+        entry.id,
+        doc?.assetsIndex ?? [],
+      );
+      slotPlaybackRef.current.set(entry.id, state);
+      if (!changed) continue;
+      const slotEl = findFluxElement(frameDoc, entry.id);
+      if (!slotEl) continue;
+      ensureFluxAttributes(slotEl, entry.id, entry.node.kind);
+      const transition = (entry.node as any).transition as SlotTransitionSpec | undefined;
+      const patch = buildSlotPatch(state.value);
+      if (!transition || transition.kind === "none" || transition.kind === "appear" || runtimeState.reducedMotion) {
+        patchSlotContent(slotEl, patch, entry.node.kind === "inline_slot");
+      } else {
+        patchSlotContentWithTransition(slotEl, patch, entry.node.kind === "inline_slot", transition, {
+          reducedMotion: runtimeState.reducedMotion,
+        });
+      }
+    }
+  }, [buildSlotPatch, doc?.assetsIndex, doc?.index, runtimeInputs, runtimeState.reducedMotion]);
 
   const applyFrameToPreview = useCallback(
     (frame: ImageFrame) => {
@@ -437,8 +528,12 @@ export default function EditorApp() {
     previewCleanupRef.current = attachPreviewListeners();
     syncPreviewOverlays();
     syncSlotLabels();
-    normalizeTextSlots();
-  }, [attachPreviewListeners, debugSlots, normalizeTextSlots, selectedId, syncPreviewOverlays, syncSlotLabels]);
+    if (runtimeState.mode === "playback") {
+      applySlotPlaybackTick();
+    } else {
+      applySlotSnapshot();
+    }
+  }, [applySlotPlaybackTick, applySlotSnapshot, attachPreviewListeners, debugSlots, runtimeState.mode, selectedId, syncPreviewOverlays, syncSlotLabels]);
 
   const updateMonacoMarkers = useCallback(() => {
     const monacoInstance = monacoRef.current;
@@ -579,6 +674,9 @@ export default function EditorApp() {
 
   const handleTransform = useCallback(
     async (transform: EditorTransform | TransformRequest, successMessage?: string) => {
+      if (runtimeState.mode === "playback") {
+        runtimeActions.setMode("edit");
+      }
       setSaveStatus("saving");
       const result = await docService.applyTransform(transform, { pushHistory: true });
       if (result.ok) {
@@ -592,7 +690,7 @@ export default function EditorApp() {
         setToast({ kind: "error", message });
       }
     },
-    [docService],
+    [docService, runtimeActions, runtimeState.mode],
   );
 
   const applyTextContent = useCallback(
@@ -624,6 +722,41 @@ export default function EditorApp() {
       void handleTransform({ type: "setSlotGenerator", id: slotId, generator });
     },
     [handleTransform],
+  );
+
+  const handlePreviewTransition = useCallback(
+    (payload: { current: SlotValue; next: SlotValue; transition?: SlotTransitionSpec }) => {
+      if (runtimeState.mode !== "edit") return;
+      if (!selectedEntry) return;
+      if (selectedEntry.node.kind !== "slot" && selectedEntry.node.kind !== "inline_slot") return;
+      const frameDoc = previewFrameRef.current?.contentDocument;
+      if (!frameDoc) return;
+      const slotEl = findFluxElement(frameDoc, selectedEntry.id);
+      if (!slotEl) return;
+
+      if (previewTransitionTimerRef.current) {
+        window.clearTimeout(previewTransitionTimerRef.current);
+        previewTransitionTimerRef.current = null;
+      }
+
+      const inline = selectedEntry.node.kind === "inline_slot";
+      const patchNext = buildSlotPatch(payload.next);
+      const patchCurrent = buildSlotPatch(payload.current);
+      const transition =
+        runtimeState.reducedMotion || !payload.transition || payload.transition.kind === "none"
+          ? { kind: "appear" }
+          : payload.transition;
+
+      patchSlotContentWithTransition(slotEl, patchNext, inline, transition, { reducedMotion: runtimeState.reducedMotion });
+
+      const duration = getTransitionDurationMs(transition);
+      const holdMs = 300;
+      previewTransitionTimerRef.current = window.setTimeout(() => {
+        clearSlotTransitionLayers(slotEl);
+        patchSlotContent(slotEl, patchCurrent, inline);
+      }, duration + holdMs);
+    },
+    [buildSlotPatch, runtimeState.mode, runtimeState.reducedMotion, selectedEntry],
   );
 
   const commitFrame = useCallback(
@@ -687,7 +820,7 @@ export default function EditorApp() {
           text: "slot",
           reserve: "fixedWidth(9, ch)",
           fit: "ellipsis",
-          refresh: "onDocstep",
+          refresh: "docstep",
         },
       })
       .run();
@@ -898,9 +1031,24 @@ export default function EditorApp() {
   }, [syncPreviewOverlays]);
 
   useEffect(() => {
+    if (runtimeState.mode !== "edit") return;
+    applySlotSnapshot();
+  }, [applySlotSnapshot, runtimeInputs, runtimeState.mode]);
+
+  useEffect(() => {
+    if (runtimeState.mode !== "playback") return;
+    applySlotPlaybackTick();
+  }, [applySlotPlaybackTick, runtimeInputs, runtimeState.mode]);
+
+  useEffect(() => {
     syncSlotLabels();
-    normalizeTextSlots();
-  }, [normalizeTextSlots, syncSlotLabels, previewSrc]);
+    slotPlaybackRef.current.clear();
+    if (runtimeState.mode === "playback") {
+      applySlotPlaybackTick();
+    } else {
+      applySlotSnapshot();
+    }
+  }, [applySlotPlaybackTick, applySlotSnapshot, previewSrc, runtimeState.mode, syncSlotLabels]);
 
   useEffect(() => {
     if (frameDraft && frameEntry) {
@@ -1032,6 +1180,9 @@ export default function EditorApp() {
     );
   }
 
+  const timeMax = Math.max(10, Math.ceil(runtimeState.timeSec / 5) * 5 + 5);
+  const timeDisplay = `${runtimeState.timeSec.toFixed(1)}s`;
+
   return (
     <div className="editor-root" ref={editorRootRef}>
       <DndContext
@@ -1043,8 +1194,9 @@ export default function EditorApp() {
           setDraggingOutlineId(null);
         }}
       >
-        <EditorFrame>
-          <EditorToolbar>
+      <EditorRuntimeProvider value={runtimeStore}>
+      <EditorFrame>
+        <EditorToolbar>
             <div className="toolbar-left">
               <div className="doc-identity">
                 <div className="doc-title">{doc?.title ?? "Flux Document"}</div>
@@ -1061,6 +1213,7 @@ export default function EditorApp() {
                   <span>overlay: {paletteOpen || findOpen || overflowOpen ? "true" : "false"}</span>
                   <span>focus: {focusedPane}</span>
                   <span>selected: {selectedId ?? "none"}</span>
+                  <span>mode: {runtimeState.mode}</span>
                 </div>
               ) : null}
             </div>
@@ -1099,7 +1252,10 @@ export default function EditorApp() {
                 </button>
                 <button
                   className={`mode-tab ${activeMode === "edit" ? "is-active" : ""}`}
-                  onClick={() => setActiveMode("edit")}
+                  onClick={() => {
+                    setActiveMode("edit");
+                    if (runtimeState.mode === "playback") runtimeActions.setMode("edit");
+                  }}
                 >
                   Edit Text
                 </button>
@@ -1130,7 +1286,111 @@ export default function EditorApp() {
             </div>
           </EditorToolbar>
 
-          <main className="editor-body">
+        <div className="editor-transport">
+          <div className="transport-group">
+            <div className="transport-label">Mode</div>
+            <div className="transport-toggle">
+              <button
+                className={`transport-tab ${runtimeState.mode === "edit" ? "is-active" : ""}`}
+                onClick={() => runtimeActions.setMode("edit")}
+              >
+                Edit
+              </button>
+              <button
+                className={`transport-tab ${runtimeState.mode === "playback" ? "is-active" : ""}`}
+                onClick={() => runtimeActions.setMode("playback")}
+              >
+                Playback
+              </button>
+            </div>
+          </div>
+          <div className="transport-group">
+            <div className="transport-label">Seed</div>
+            <input
+              className="input input-compact"
+              type="number"
+              value={runtimeState.seed}
+              onChange={(event) => runtimeActions.setSeed(Number(event.target.value))}
+            />
+          </div>
+          <div className="transport-group transport-time">
+            <button
+              type="button"
+              className={`btn btn-ghost btn-xs ${runtimeState.isPlaying ? "is-active" : ""}`}
+              onClick={() => runtimeActions.togglePlay()}
+              disabled={runtimeState.mode !== "playback"}
+            >
+              {runtimeState.isPlaying ? "Pause" : "Play"}
+            </button>
+            <input
+              className="transport-scrub"
+              type="range"
+              min={0}
+              max={timeMax}
+              step={0.1}
+              value={runtimeState.timeSec}
+              onChange={(event) => runtimeActions.setTimeSec(Number(event.target.value))}
+            />
+            <div className="transport-time-readout">{timeDisplay}</div>
+            <select
+              className="select select-compact"
+              value={runtimeState.timeRate}
+              onChange={(event) => runtimeActions.setTimeRate(Number(event.target.value) as any)}
+              disabled={runtimeState.mode !== "playback"}
+            >
+              {[0.25, 0.5, 1, 2].map((rate) => (
+                <option key={rate} value={rate}>
+                  {rate}×
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="transport-group">
+            <div className="transport-label">Docstep</div>
+            <div className="transport-stepper">
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs"
+                onClick={() => runtimeActions.setDocstep(runtimeState.docstep - 1)}
+              >
+                −
+              </button>
+              <input
+                className="input input-compact"
+                type="number"
+                value={runtimeState.docstep}
+                onChange={(event) => runtimeActions.setDocstep(Number(event.target.value))}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs"
+                onClick={() => runtimeActions.setDocstep(runtimeState.docstep + 1)}
+              >
+                +
+              </button>
+            </div>
+            <label className="transport-toggle-inline">
+              <input
+                type="checkbox"
+                checked={runtimeState.autoDocstep}
+                onChange={(event) => runtimeActions.setAutoDocstep(event.target.checked)}
+              />
+              Auto
+            </label>
+          </div>
+          <div className="transport-group">
+            <label className="transport-toggle-inline">
+              <input
+                type="checkbox"
+                checked={runtimeState.reducedMotion}
+                onChange={(event) => runtimeActions.setReducedMotion(event.target.checked)}
+              />
+              Reduced motion
+            </label>
+          </div>
+        </div>
+
+        <main className="editor-body">
             <OutlinePane className="editor-pane outline-pane" style={{ width: outlineWidth }}>
               <div className="pane-header">
                 <div className="pane-heading">
@@ -1274,6 +1534,29 @@ export default function EditorApp() {
                               </div>
                             </div>
                             {transformError ? <div className="inspector-alert">{transformError}</div> : null}
+                            {illegalSlotProps && selectedNode ? (
+                              <div className="inspector-alert slot-alert">
+                                <div>Refresh/transition can only be set on slots.</div>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() => {
+                                    const props = { ...(selectedNode.props ?? {}) } as Record<string, unknown>;
+                                    delete props.refresh;
+                                    delete props.transition;
+                                    const cleaned: DocumentNode = {
+                                      ...selectedNode,
+                                      props,
+                                    } as DocumentNode;
+                                    delete (cleaned as any).refresh;
+                                    delete (cleaned as any).transition;
+                                    void handleTransform({ type: "replaceNode", id: selectedNode.id, node: cleaned });
+                                  }}
+                                >
+                                  Fix
+                                </button>
+                              </div>
+                            ) : null}
 
                             {activeTextNode ? (
                               <div className="inspector-section">
@@ -1309,11 +1592,12 @@ export default function EditorApp() {
                               <SlotInspector
                                 node={selectedNode}
                                 assets={doc?.assetsIndex ?? []}
-                                runtime={docState.runtime}
-                                onRuntimeChange={(inputs) => docService.setRuntimeInputs(inputs)}
+                                runtime={runtimeInputs}
+                                reducedMotion={runtimeState.reducedMotion}
                                 onLiteralChange={(textId, text) => applyTextContent(textId, { text })}
                                 onGeneratorChange={(spec) => applySlotGenerator(selectedNode.id, spec)}
                                 onPropsChange={(payload) => handleTransform({ type: "setSlotProps", id: selectedNode.id, ...payload })}
+                                onPreviewTransition={handlePreviewTransition}
                               />
                             ) : null}
 
@@ -1506,7 +1790,8 @@ export default function EditorApp() {
               utilityItems={commandItems.utilityItems}
             />
           ) : null}
-        </EditorFrame>
+      </EditorFrame>
+      </EditorRuntimeProvider>
 
         <DragOverlay>
           {draggingAsset ? (
@@ -1859,31 +2144,36 @@ function SlotInspector({
   node,
   assets,
   runtime,
-  onRuntimeChange,
+  reducedMotion,
   onLiteralChange,
   onGeneratorChange,
   onPropsChange,
+  onPreviewTransition,
 }: {
   node: DocumentNode;
   assets: AssetItem[];
-  runtime: { seed: number; time: number; docstep: number };
-  onRuntimeChange: (inputs: Partial<{ seed: number; time: number; docstep: number }>) => void;
+  runtime: EditorRuntimeInputs;
+  reducedMotion: boolean;
   onLiteralChange: (textId: string, text: string) => void;
   onGeneratorChange: (generator: SlotGeneratorSpec) => void;
-  onPropsChange: (payload: { reserve?: string; fit?: string; refresh?: RefreshPolicy }) => void;
+  onPropsChange: (payload: { reserve?: string; fit?: string; refresh?: RefreshPolicy; transition?: SlotTransitionSpec }) => void;
+  onPreviewTransition: (payload: { current: SlotValue; next: SlotValue; transition?: SlotTransitionSpec }) => void;
 }) {
   const program = useMemo(() => readSlotProgram(node), [node]);
   const baseSpec = program.spec;
+  const refreshPolicy = (node as any).refresh as RefreshPolicy | undefined;
+  const transitionPolicy = (node as any).transition as SlotTransitionSpec | undefined;
   const [variants, setVariants] = useState<string[]>(() => {
     if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") return [...baseSpec.values];
     if (baseSpec?.kind === "literal") return [baseSpec.value];
     return [];
   });
   const [tagsDraft, setTagsDraft] = useState<string[]>(() => (baseSpec?.kind === "assetsPick" ? baseSpec.tags : []));
+  const [tagInput, setTagInput] = useState("");
+  const [bankDraft, setBankDraft] = useState(() => (baseSpec?.kind === "assetsPick" ? baseSpec.bank ?? "" : ""));
   const [rateDraft, setRateDraft] = useState<number>(() => (baseSpec?.kind === "poisson" ? baseSpec.ratePerSec : 1));
   const [reserve, setReserve] = useState(getLiteralString(node.props?.reserve) ?? "fixedWidth(8, ch)");
   const [fit, setFit] = useState(getLiteralString(node.props?.fit) ?? "ellipsis");
-  const [refresh, setRefresh] = useState(node.refresh?.kind ?? "onLoad");
 
   useEffect(() => {
     if (baseSpec?.kind === "choose" || baseSpec?.kind === "cycle") {
@@ -1900,14 +2190,17 @@ function SlotInspector({
   }, [baseSpec?.kind, JSON.stringify(baseSpec)]);
 
   useEffect(() => {
+    if (baseSpec?.kind === "assetsPick") setBankDraft(baseSpec.bank ?? "");
+  }, [baseSpec?.kind, baseSpec && "bank" in baseSpec ? baseSpec.bank : ""]);
+
+  useEffect(() => {
     if (baseSpec?.kind === "poisson") setRateDraft(baseSpec.ratePerSec);
   }, [baseSpec?.kind, baseSpec && "ratePerSec" in baseSpec ? baseSpec.ratePerSec : 0]);
 
   useEffect(() => {
     setReserve(getLiteralString(node.props?.reserve) ?? "fixedWidth(8, ch)");
     setFit(getLiteralString(node.props?.fit) ?? "ellipsis");
-    setRefresh(node.refresh?.kind ?? "onLoad");
-  }, [node.id, node.props, node.refresh]);
+  }, [node.id, node.props]);
 
   const effectiveSpec = useMemo(() => {
     if (!baseSpec) return null;
@@ -1918,28 +2211,38 @@ function SlotInspector({
       return { ...baseSpec, value: variants[0] ?? "" };
     }
     if (baseSpec.kind === "assetsPick") {
-      return { ...baseSpec, tags: tagsDraft };
+      return { ...baseSpec, tags: tagsDraft, bank: bankDraft || undefined };
     }
     if (baseSpec.kind === "poisson") {
       return { ...baseSpec, ratePerSec: rateDraft };
     }
     return baseSpec;
-  }, [baseSpec, rateDraft, tagsDraft, variants]);
+  }, [baseSpec, bankDraft, rateDraft, tagsDraft, variants]);
 
-  const currentValue = useMemo(
-    () => resolveSlotValue(effectiveSpec, runtime, node.id, assets) ?? "",
-    [assets, effectiveSpec, node.id, runtime],
+  const currentState = useMemo(
+    () => computeSlotValue(effectiveSpec, refreshPolicy, runtime, node.id, assets),
+    [assets, effectiveSpec, node.id, refreshPolicy, runtime],
   );
 
+  const currentValue = currentState.value.kind === "asset" ? currentState.value.label : currentState.value.text;
+
   const simulation = useMemo(
-    () => simulateSlotValues(effectiveSpec, runtime, node.id, assets, 12),
-    [assets, effectiveSpec, node.id, runtime],
+    () => simulateSlotChanges(effectiveSpec, refreshPolicy, runtime, node.id, assets, 12),
+    [assets, effectiveSpec, node.id, refreshPolicy, runtime],
   );
 
   const candidateAssets = useMemo(() => {
     if (effectiveSpec?.kind !== "assetsPick") return [];
-    return filterAssetsByTags(assets, effectiveSpec.tags);
+    return filterAssetsByTags(assets, effectiveSpec.tags, effectiveSpec.bank);
   }, [assets, effectiveSpec]);
+
+  const availableBanks = useMemo(() => {
+    const banks = new Set<string>();
+    assets.forEach((asset) => {
+      if (asset.bankName) banks.add(asset.bankName);
+    });
+    return Array.from(banks);
+  }, [assets]);
 
   const generatorDetails = useMemo(() => describeGenerator(effectiveSpec), [effectiveSpec]);
 
@@ -1998,55 +2301,44 @@ function SlotInspector({
 
   const showVariants =
     baseSpec?.kind === "choose" || baseSpec?.kind === "cycle" || baseSpec?.kind === "literal";
-  const isNonEnumerable = !showVariants;
+  const isNonEnumerable = !showVariants && baseSpec?.kind !== "assetsPick";
+
+  const nextPreviewValue = useMemo(() => {
+    if (!effectiveSpec || !simulation.length) return null;
+    const next = simulation[0];
+    return resolveSlotValueForIndex(effectiveSpec, runtime.seed, node.id, next.eventIndex, assets);
+  }, [assets, effectiveSpec, node.id, runtime.seed, simulation]);
+
+  const handlePreviewTransition = () => {
+    if (!nextPreviewValue) return;
+    onPreviewTransition({ current: currentState.value, next: nextPreviewValue, transition: transitionPolicy });
+  };
 
   return (
     <div className="inspector-section slot-program-section">
-      <div className="section-title">Slot Program</div>
+      <div className="section-title">Slot</div>
       <div className="slot-panels">
         <div className="slot-panel">
-          <div className="panel-title">Current Value</div>
-          <div className="slot-current">{currentValue || "—"}</div>
-          <div className="slot-runtime">
-            <div className="runtime-row">
-              <span>Docstep</span>
-              <div className="runtime-controls">
-                <button type="button" className="btn btn-ghost btn-xs" onClick={() => onRuntimeChange({ docstep: runtime.docstep - 1 })}>
-                  −
-                </button>
-                <span>{runtime.docstep}</span>
-                <button type="button" className="btn btn-ghost btn-xs" onClick={() => onRuntimeChange({ docstep: runtime.docstep + 1 })}>
-                  +
-                </button>
-              </div>
+          <div className="panel-title">Content</div>
+          <div className="slot-current">
+            <div className="slot-current-info">
+              <div className="slot-current-value">{currentValue || "—"}</div>
+              {currentState.value.kind === "asset" && currentState.value.asset ? (
+                <div className="slot-current-meta">
+                  {currentState.value.asset.id ? <span>ID: {currentState.value.asset.id}</span> : null}
+                  {currentState.value.asset.path ? <span>Path: {currentState.value.asset.path}</span> : null}
+                </div>
+              ) : null}
             </div>
-            <div className="runtime-row">
-              <span>Time</span>
-              <div className="runtime-controls">
-                <input
-                  className="input input-compact"
-                  type="number"
-                  value={runtime.time}
-                  onChange={(event) => onRuntimeChange({ time: Number(event.target.value) })}
-                />
-                <button type="button" className="btn btn-ghost btn-xs" onClick={() => onRuntimeChange({ time: runtime.time + 1 })}>
-                  +1s
-                </button>
-              </div>
-            </div>
-            <div className="runtime-row">
-              <span>Seed</span>
-              <input
-                className="input input-compact"
-                type="number"
-                value={runtime.seed}
-                onChange={(event) => onRuntimeChange({ seed: Number(event.target.value) })}
+            {currentState.value.kind === "asset" && currentState.value.asset ? (
+              <div
+                className="slot-current-media"
+                style={{ backgroundImage: `url(${assetPreviewUrl(currentState.value.asset)})` }}
               />
-            </div>
+            ) : null}
           </div>
-        </div>
-        <div className="slot-panel">
-          <div className="panel-title">Source / Generator</div>
+
+          <div className="slot-subtitle">Source / generator</div>
           <div className="slot-source">
             {generatorDetails.length ? (
               generatorDetails.map((detail) => (
@@ -2059,23 +2351,75 @@ function SlotInspector({
               <div className="section-hint">No generator metadata available.</div>
             )}
           </div>
+
           {baseSpec?.kind === "assetsPick" ? (
-            <label className="field">
-              <span>Tags</span>
-              <input
-                className="input"
-                value={tagsDraft.join(", ")}
-                onChange={(event) => {
-                  const next = event.target.value
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean);
-                  setTagsDraft(next);
-                  onGeneratorChange({ ...baseSpec, tags: next });
-                }}
-              />
-            </label>
+            <div className="slot-tags-editor">
+              <div className="slot-subtitle">Tags</div>
+              <div className="slot-tags">
+                {tagsDraft.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="tag-chip"
+                    onClick={() => {
+                      const next = tagsDraft.filter((item) => item !== tag);
+                      setTagsDraft(next);
+                      onGeneratorChange({ ...baseSpec, tags: next, bank: bankDraft || undefined });
+                    }}
+                  >
+                    {tag} ✕
+                  </button>
+                ))}
+                <input
+                  className="input tag-input"
+                  value={tagInput}
+                  placeholder="Add tag"
+                  onChange={(event) => setTagInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      const nextTag = tagInput.trim().replace(/,$/, "");
+                      if (!nextTag) return;
+                      const next = Array.from(new Set([...tagsDraft, nextTag]));
+                      setTagsDraft(next);
+                      setTagInput("");
+                      onGeneratorChange({ ...baseSpec, tags: next, bank: bankDraft || undefined });
+                    }
+                  }}
+                  onBlur={() => {
+                    const nextTag = tagInput.trim();
+                    if (!nextTag) return;
+                    const next = Array.from(new Set([...tagsDraft, nextTag]));
+                    setTagsDraft(next);
+                    setTagInput("");
+                    onGeneratorChange({ ...baseSpec, tags: next, bank: bankDraft || undefined });
+                  }}
+                />
+              </div>
+              {availableBanks.length ? (
+                <label className="field">
+                  <span>Bank</span>
+                  <select
+                    className="select"
+                    value={bankDraft}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setBankDraft(next);
+                      onGeneratorChange({ ...baseSpec, tags: tagsDraft, bank: next || undefined });
+                    }}
+                  >
+                    <option value="">Any</option>
+                    {availableBanks.map((bank) => (
+                      <option key={bank} value={bank}>
+                        {bank}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
           ) : null}
+
           {baseSpec?.kind === "poisson" ? (
             <label className="field">
               <span>Rate / sec</span>
@@ -2091,133 +2435,534 @@ function SlotInspector({
               />
             </label>
           ) : null}
-        </div>
-        <div className="slot-panel">
-          <div className="panel-title">Variants / Schedule</div>
+
           {showVariants ? (
-            <div className="variant-list">
-              {variants.map((value, index) => (
-                <div key={index} className="variant-row">
-                  <input
-                    className="input"
-                    value={value}
-                    onChange={(event) => handleVariantChange(index, event.target.value)}
-                  />
-                  <div className="variant-actions">
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      onClick={() => handleMoveVariant(index, -1)}
-                      disabled={index === 0}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      onClick={() => handleMoveVariant(index, 1)}
-                      disabled={index === variants.length - 1}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      onClick={() => handleRemoveVariant(index)}
-                      disabled={variants.length <= 1 && baseSpec?.kind === "literal"}
-                    >
-                      ✕
-                    </button>
+            <>
+              <div className="slot-subtitle">Variants</div>
+              <div className="variant-list">
+                {variants.map((value, index) => (
+                  <div key={index} className="variant-row">
+                    <input
+                      className="input"
+                      value={value}
+                      onChange={(event) => handleVariantChange(index, event.target.value)}
+                    />
+                    <div className="variant-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleMoveVariant(index, -1)}
+                        disabled={index === 0}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleMoveVariant(index, 1)}
+                        disabled={index === variants.length - 1}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleRemoveVariant(index)}
+                        disabled={variants.length <= 1 && baseSpec?.kind === "literal"}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-              <button type="button" className="btn btn-ghost btn-xs" onClick={handleAddVariant}>
-                Add variant
-              </button>
-            </div>
+                ))}
+                <button type="button" className="btn btn-ghost btn-xs" onClick={handleAddVariant}>
+                  Add variant
+                </button>
+              </div>
+            </>
           ) : isNonEnumerable ? (
             <div className="slot-non-enum">
-              {baseSpec?.kind === "assetsPick" ? (
-                <div className="slot-candidates">
-                  <div className="slot-candidates-title">Candidates</div>
-                  {candidateAssets.length ? (
-                    <ul>
-                      {candidateAssets.map((asset) => (
-                        <li key={asset.id}>{asset.name}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="section-hint">No assets match the current tags.</div>
-                  )}
-                </div>
-              ) : null}
-              <div className="slot-sim">
-                <div className="slot-candidates-title">Simulate next 12</div>
-                <div className="slot-sim-table">
-                  <div className="slot-sim-head">
-                    <span>Docstep</span>
-                    <span>Time</span>
-                    <span>Value</span>
-                  </div>
-                  {simulation.map((row) => (
-                    <div key={`${row.docstep}-${row.time}`} className="slot-sim-row">
-                      <span>{row.docstep}</span>
-                      <span>{row.time}</span>
-                      <span>{row.value}</span>
+              <div className="section-hint">This generator is probabilistic; edit its parameters above.</div>
+            </div>
+          ) : null}
+
+          {baseSpec?.kind === "assetsPick" ? (
+            <div className="slot-candidates">
+              <div className="slot-subtitle">Candidates</div>
+              {candidateAssets.length ? (
+                <div className="slot-candidates-grid">
+                  {candidateAssets.slice(0, 8).map((asset) => (
+                    <div key={asset.id} className="slot-candidate">
+                      <div className="slot-candidate-thumb" style={{ backgroundImage: `url(${assetPreviewUrl(asset)})` }} />
+                      <div className="slot-candidate-label">{asset.name}</div>
                     </div>
                   ))}
                 </div>
-              </div>
+              ) : (
+                <div className="section-hint">No assets match the current tags.</div>
+              )}
             </div>
-          ) : (
-            <div className="section-hint">Generator details are unavailable.</div>
-          )}
+          ) : null}
+
+          <div className="slot-sim">
+            <div className="slot-subtitle">Simulate next 12 changes</div>
+            {simulation.length ? (
+              <div className="slot-sim-table">
+                <div className="slot-sim-head">
+                  <span>Bucket</span>
+                  <span>Time</span>
+                  <span>Value</span>
+                  <span>Hash</span>
+                </div>
+                {simulation.map((row) => (
+                  <div key={`${row.bucket}-${row.timeSec}-${row.hash}`} className="slot-sim-row">
+                    <span>{row.bucket}</span>
+                    <span>{row.timeSec.toFixed(2)}s</span>
+                    <span>{row.value}</span>
+                    <span>{row.hash}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="section-hint">No upcoming refresh events.</div>
+            )}
+          </div>
+
+          <div className="slot-layout">
+            <label className="field">
+              <span>Reserve</span>
+              <input
+                className="input"
+                value={reserve}
+                onChange={(event) => setReserve(event.target.value)}
+                onBlur={() => onPropsChange({ reserve })}
+              />
+            </label>
+            <label className="field">
+              <span>Fit</span>
+              <select
+                className="select"
+                value={fit}
+                onChange={(event) => {
+                  setFit(event.target.value);
+                  onPropsChange({ fit: event.target.value });
+                }}
+              >
+                {"clip,ellipsis,shrink,scaleDown".split(",").map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="slot-panel">
+          <div className="panel-title">Refresh</div>
+          <RefreshEditor value={refreshPolicy} onChange={(next) => onPropsChange({ refresh: next })} />
+        </div>
+
+        <div className="slot-panel">
+          <div className="panel-title">Transition</div>
+          <TransitionEditor
+            value={transitionPolicy}
+            reducedMotion={reducedMotion}
+            onChange={(next) => onPropsChange({ transition: next })}
+          />
+          <button type="button" className="btn btn-ghost btn-xs" onClick={handlePreviewTransition}>
+            Preview transition
+          </button>
         </div>
       </div>
-      <div className="slot-props">
+    </div>
+  );
+}
+
+function RefreshEditor({
+  value,
+  onChange,
+}: {
+  value: RefreshPolicy | undefined;
+  onChange: (next: RefreshPolicy) => void;
+}) {
+  const normalized = useMemo(() => normalizeRefreshPolicy(value as any), [value]);
+  const [mode, setMode] = useState<
+    "never" | "docstep" | "every" | "at" | "atEach" | "poisson" | "chance"
+  >("docstep");
+  const [everyDuration, setEveryDuration] = useState("1s");
+  const [everyPhase, setEveryPhase] = useState("");
+  const [atTime, setAtTime] = useState("1s");
+  const [atEachTimes, setAtEachTimes] = useState("1s, 2s");
+  const [poissonRate, setPoissonRate] = useState("1");
+  const [chanceP, setChanceP] = useState("0.4");
+  const [chanceEveryKind, setChanceEveryKind] = useState<"docstep" | "duration">("docstep");
+  const [chanceEveryDuration, setChanceEveryDuration] = useState("1s");
+
+  useEffect(() => {
+    const kind = normalized.kind === "docstep" ? "docstep" : normalized.kind === "never" ? "never" : normalized.kind;
+    if (
+      kind === "every" ||
+      kind === "at" ||
+      kind === "atEach" ||
+      kind === "poisson" ||
+      kind === "chance" ||
+      kind === "docstep" ||
+      kind === "never"
+    ) {
+      setMode(kind);
+    }
+
+    if (normalized.kind === "every") {
+      setEveryDuration(formatDuration(toSeconds(normalized.amount, normalized.unit)));
+      setEveryPhase(
+        normalized.phase !== undefined ? formatDuration(toSeconds(normalized.phase, normalized.phaseUnit ?? normalized.unit)) : "",
+      );
+    }
+    if (normalized.kind === "at") {
+      setAtTime(formatDuration(toSeconds(normalized.time, normalized.unit ?? "s")));
+    }
+    if (normalized.kind === "atEach") {
+      const times = (normalized.times ?? []).map((time) => formatDuration(toSeconds(time, normalized.unit ?? "s")));
+      setAtEachTimes(times.join(", "));
+    }
+    if (normalized.kind === "poisson") {
+      setPoissonRate(String(normalized.ratePerSec));
+    }
+    if (normalized.kind === "chance") {
+      setChanceP(String(normalized.p));
+      if (!normalized.every || normalized.every.kind === "docstep") {
+        setChanceEveryKind("docstep");
+      } else {
+        setChanceEveryKind("duration");
+        setChanceEveryDuration(formatDuration(toSeconds(normalized.every.amount, normalized.every.unit)));
+      }
+    }
+  }, [normalized, normalized.kind]);
+
+  const validation = useMemo(() => {
+    let error: string | null = null;
+    let hint: string | null = null;
+    let policy: RefreshPolicy | null = null;
+
+    if (mode === "never") {
+      policy = { kind: "never" } as any;
+    } else if (mode === "docstep") {
+      policy = { kind: "docstep" } as any;
+    } else if (mode === "every") {
+      const duration = parseDurationString(everyDuration);
+      if (!duration) error = "Enter a duration like 1.2s or 250ms.";
+      const phase = everyPhase.trim() ? parseDurationString(everyPhase) : null;
+      if (everyPhase.trim() && !phase) error = "Phase must be a valid duration.";
+      if (!error && duration) {
+        policy = {
+          kind: "every",
+          amount: duration.amount,
+          unit: duration.unit,
+          phase: phase?.amount,
+          phaseUnit: phase?.unit,
+        } as any;
+        hint = `bucket=${formatDuration(duration.seconds)}`;
+      }
+    } else if (mode === "at") {
+      const time = parseDurationString(atTime);
+      if (!time) error = "Enter a time like 4s or 500ms.";
+      if (!error && time) {
+        policy = { kind: "at", time: time.amount, unit: time.unit } as any;
+      }
+    } else if (mode === "atEach") {
+      const parts = atEachTimes
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (!parts.length) error = "Enter at least one time.";
+      const parsed = parts.map((part) => parseDurationString(part));
+      if (!error && parsed.some((item) => !item)) error = "Each time must include a unit (ms, s, m).";
+      if (!error && parsed.every(Boolean)) {
+        const timesSec = parsed.map((item) => item!.seconds);
+        policy = { kind: "atEach", times: timesSec, unit: "s" } as any;
+      }
+    } else if (mode === "poisson") {
+      const rate = Number(poissonRate);
+      if (!Number.isFinite(rate)) error = "Rate must be a number.";
+      if (!error) {
+        policy = { kind: "poisson", ratePerSec: rate } as any;
+        const bucketSec = 0.25;
+        const p = 1 - Math.exp(-Math.max(0, rate) * bucketSec);
+        hint = `bucket=${formatDuration(bucketSec)} · p/bucket≈${p.toFixed(3)}`;
+      }
+    } else if (mode === "chance") {
+      const p = Number(chanceP);
+      if (!Number.isFinite(p) || p < 0 || p > 1) error = "p must be between 0 and 1.";
+      if (!error) {
+        if (chanceEveryKind === "docstep") {
+          policy = { kind: "chance", p, every: { kind: "docstep" } } as any;
+          hint = `bucket=${formatDuration(0.25)} · p/bucket=${p}`;
+        } else {
+          const duration = parseDurationString(chanceEveryDuration);
+          if (!duration) error = "Every must be a duration like 1s.";
+          if (!error && duration) {
+            policy = { kind: "chance", p, every: { kind: "every", amount: duration.amount, unit: duration.unit } } as any;
+            hint = `bucket=${formatDuration(duration.seconds)} · p/bucket=${p}`;
+          }
+        }
+      }
+    }
+
+    return { error, policy, hint };
+  }, [
+    atEachTimes,
+    atTime,
+    chanceEveryDuration,
+    chanceEveryKind,
+    chanceP,
+    everyDuration,
+    everyPhase,
+    mode,
+    poissonRate,
+  ]);
+
+  return (
+    <div className="refresh-editor">
+      <label className="field">
+        <span>Mode</span>
+        <select className="select" value={mode} onChange={(event) => setMode(event.target.value as any)}>
+          <option value="never">never</option>
+          <option value="docstep">docstep</option>
+          <option value="every">every</option>
+          <option value="at">at</option>
+          <option value="atEach">atEach</option>
+          <option value="poisson">poisson</option>
+          <option value="chance">chance</option>
+        </select>
+      </label>
+
+      {mode === "every" ? (
+        <div className="refresh-fields">
+          <label className="field">
+            <span>Duration</span>
+            <input className="input" value={everyDuration} onChange={(event) => setEveryDuration(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Phase (optional)</span>
+            <input className="input" value={everyPhase} onChange={(event) => setEveryPhase(event.target.value)} />
+          </label>
+        </div>
+      ) : null}
+
+      {mode === "at" ? (
         <label className="field">
-          <span>Reserve</span>
+          <span>Time</span>
+          <input className="input" value={atTime} onChange={(event) => setAtTime(event.target.value)} />
+        </label>
+      ) : null}
+
+      {mode === "atEach" ? (
+        <label className="field">
+          <span>Times</span>
+          <input className="input" value={atEachTimes} onChange={(event) => setAtEachTimes(event.target.value)} />
+        </label>
+      ) : null}
+
+      {mode === "poisson" ? (
+        <label className="field">
+          <span>Rate / sec</span>
+          <input className="input" value={poissonRate} onChange={(event) => setPoissonRate(event.target.value)} />
+        </label>
+      ) : null}
+
+      {mode === "chance" ? (
+        <div className="refresh-fields">
+          <label className="field">
+            <span>p</span>
+            <input className="input" value={chanceP} onChange={(event) => setChanceP(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Every</span>
+            <select
+              className="select"
+              value={chanceEveryKind}
+              onChange={(event) => setChanceEveryKind(event.target.value as any)}
+            >
+              <option value="docstep">docstep</option>
+              <option value="duration">duration</option>
+            </select>
+          </label>
+          {chanceEveryKind === "duration" ? (
+            <label className="field">
+              <span>Duration</span>
+              <input
+                className="input"
+                value={chanceEveryDuration}
+                onChange={(event) => setChanceEveryDuration(event.target.value)}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+
+      {validation.hint ? <div className="field-hint">{validation.hint}</div> : null}
+      {validation.error ? <div className="field-error">{validation.error}</div> : null}
+      <div className="refresh-actions">
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs"
+          disabled={!validation.policy || Boolean(validation.error)}
+          onClick={() => {
+            if (validation.policy) onChange(validation.policy);
+          }}
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TransitionEditor({
+  value,
+  reducedMotion,
+  onChange,
+}: {
+  value: SlotTransitionSpec | undefined;
+  reducedMotion: boolean;
+  onChange: (next: SlotTransitionSpec) => void;
+}) {
+  const [mode, setMode] = useState<"none" | "appear" | "fade" | "wipe" | "flash">("none");
+  const [durationMs, setDurationMs] = useState("220");
+  const [ease, setEase] = useState<"in" | "out" | "inOut" | "linear">("inOut");
+  const [direction, setDirection] = useState<"left" | "right" | "up" | "down">("right");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const kind = value?.kind ?? "none";
+    setMode(kind);
+    if (kind === "fade" || kind === "wipe" || kind === "flash") {
+      setDurationMs(String((value as any).durationMs ?? 220));
+    }
+    if (kind === "fade" || kind === "wipe") {
+      setEase(((value as any).ease ?? "inOut") as any);
+    }
+    if (kind === "wipe") {
+      setDirection(((value as any).direction ?? "right") as any);
+    }
+  }, [value]);
+
+  const parseDuration = (raw: string) => {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.round(parsed);
+  };
+
+  const commit = (
+    nextMode: typeof mode,
+    overrides?: { durationMs?: string; ease?: "in" | "out" | "inOut" | "linear"; direction?: "left" | "right" | "up" | "down" },
+  ) => {
+    if (nextMode === "none" || nextMode === "appear") {
+      setError(null);
+      onChange({ kind: nextMode });
+      return;
+    }
+    const rawDuration = overrides?.durationMs ?? durationMs;
+    const nextEase = overrides?.ease ?? ease;
+    const nextDirection = overrides?.direction ?? direction;
+    const duration = parseDuration(rawDuration);
+    if (!duration) {
+      setError("Duration must be a positive number of ms.");
+      return;
+    }
+    setError(null);
+    if (nextMode === "fade") {
+      onChange({ kind: "fade", durationMs: duration, ease: nextEase });
+      return;
+    }
+    if (nextMode === "wipe") {
+      onChange({ kind: "wipe", direction: nextDirection, durationMs: duration, ease: nextEase });
+      return;
+    }
+    if (nextMode === "flash") {
+      onChange({ kind: "flash", durationMs: duration });
+    }
+  };
+
+  return (
+    <div className="transition-editor">
+      <label className="field">
+        <span>Mode</span>
+        <select
+          className="select"
+          value={mode}
+          onChange={(event) => {
+            const next = event.target.value as any;
+            setMode(next);
+            commit(next);
+          }}
+        >
+          <option value="none">none</option>
+          <option value="appear">appear</option>
+          <option value="fade">fade</option>
+          <option value="wipe">wipe</option>
+          <option value="flash">flash</option>
+        </select>
+      </label>
+
+      {mode === "fade" || mode === "wipe" || mode === "flash" ? (
+        <label className="field">
+          <span>Duration (ms)</span>
           <input
             className="input"
-            value={reserve}
-            onChange={(event) => setReserve(event.target.value)}
-            onBlur={() => onPropsChange({ reserve })}
+            value={durationMs}
+            onChange={(event) => {
+              const next = event.target.value;
+              setDurationMs(next);
+              commit(mode, { durationMs: next });
+            }}
           />
         </label>
+      ) : null}
+
+      {mode === "fade" || mode === "wipe" ? (
         <label className="field">
-          <span>Fit</span>
+          <span>Ease</span>
           <select
             className="select"
-            value={fit}
+            value={ease}
             onChange={(event) => {
-              setFit(event.target.value);
-              onPropsChange({ fit: event.target.value });
+              const next = event.target.value as any;
+              setEase(next);
+              commit(mode, { ease: next });
             }}
           >
-            {"clip,ellipsis,shrink,scaleDown".split(",").map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
+            <option value="in">in</option>
+            <option value="out">out</option>
+            <option value="inOut">inOut</option>
+            <option value="linear">linear</option>
           </select>
         </label>
+      ) : null}
+
+      {mode === "wipe" ? (
         <label className="field">
-          <span>Refresh</span>
+          <span>Direction</span>
           <select
             className="select"
-            value={refresh}
+            value={direction}
             onChange={(event) => {
-              setRefresh(event.target.value);
-              onPropsChange({ refresh: parseRefresh(event.target.value) });
+              const next = event.target.value as any;
+              setDirection(next);
+              commit(mode, { direction: next });
             }}
           >
-            <option value="onLoad">On load</option>
-            <option value="onDocstep">Docstep</option>
-            <option value="every">Time</option>
-            <option value="never">Never</option>
+            <option value="left">left</option>
+            <option value="right">right</option>
+            <option value="up">up</option>
+            <option value="down">down</option>
           </select>
         </label>
-      </div>
+      ) : null}
+
+      {reducedMotion ? <div className="field-hint">Reduced motion is on. Playback will use appear().</div> : null}
+      {error ? <div className="field-error">{error}</div> : null}
     </div>
   );
 }
@@ -2431,23 +3176,11 @@ function renderSaveStatus(status: "idle" | "saving" | "saved" | "error", dirty: 
   return "Saved ✓";
 }
 
-type SlotGeneratorSpec =
-  | { kind: "literal"; value: string }
-  | { kind: "choose"; values: string[] }
-  | { kind: "cycle"; values: string[]; period?: number }
-  | { kind: "assetsPick"; tags: string[]; bank?: string }
-  | { kind: "poisson"; ratePerSec: number }
-  | { kind: "at"; times: number[]; values: string[] }
-  | { kind: "every"; amount: number; unit?: string; values?: string[] }
-  | { kind: "unknown"; summary: string };
-
 type SlotProgram = {
   spec: SlotGeneratorSpec | null;
   raw: unknown;
   source: { kind: "prop" | "text"; key?: string; textId?: string };
 };
-
-type SlotSimulationRow = { docstep: number; time: number; value: string };
 
 type CaptionTarget = { kind: "prop" | "text"; id: string; value: string };
 
@@ -2483,84 +3216,14 @@ function readSlotProgram(node: DocumentNode): SlotProgram {
   return { spec: null, raw: null, source: { kind: "prop" } };
 }
 
-function resolveSlotDisplayText(node: DocumentNode, runtime: { seed: number; time: number; docstep: number }, assets: AssetItem[]): string {
+function resolveSlotDisplayText(node: DocumentNode, runtime: EditorRuntimeInputs, assets: AssetItem[]): string {
   const program = readSlotProgram(node);
-  const resolved = resolveSlotValue(program.spec, runtime, node.id, assets);
-  if (resolved !== null && resolved !== undefined) return resolved;
-  const textChild = node.children?.find((child) => child.kind === "text");
-  return getLiteralString(textChild?.props?.content) ?? "";
-}
-
-function resolveSlotValue(
-  spec: SlotGeneratorSpec | null,
-  runtime: { seed: number; time: number; docstep: number },
-  slotId: string,
-  assets: AssetItem[],
-): string | null {
-  if (!spec) return null;
-  if (spec.kind === "literal") return spec.value;
-  if (spec.kind === "choose") {
-    if (!spec.values.length) return "";
-    const index = seededIndex(runtime, slotId, spec.values.length);
-    return spec.values[index] ?? "";
+  if (!program.spec) {
+    const textChild = node.children?.find((child) => child.kind === "text");
+    return getLiteralString(textChild?.props?.content) ?? "";
   }
-  if (spec.kind === "cycle") {
-    if (!spec.values.length) return "";
-    const index = Math.abs(runtime.docstep) % spec.values.length;
-    return spec.values[index] ?? "";
-  }
-  if (spec.kind === "assetsPick") {
-    const candidates = filterAssetsByTags(assets, spec.tags);
-    if (!candidates.length) return "";
-    const index = seededIndex(runtime, slotId, candidates.length);
-    const asset = candidates[index];
-    return asset?.name ?? asset?.path ?? "";
-  }
-  if (spec.kind === "poisson") {
-    const rate = Math.max(0, spec.ratePerSec);
-    const chance = Math.min(1, rate / 2);
-    const random = seededRandom(runtime, slotId);
-    return random < chance ? "event" : "—";
-  }
-  if (spec.kind === "at") {
-    if (!spec.values.length) return "";
-    const index = seededIndex(runtime, slotId, spec.values.length);
-    return spec.values[index] ?? "";
-  }
-  if (spec.kind === "every") {
-    if (spec.values?.length) {
-      const index = seededIndex(runtime, slotId, spec.values.length);
-      return spec.values[index] ?? "";
-    }
-    return "";
-  }
-  return null;
-}
-
-function simulateSlotValues(
-  spec: SlotGeneratorSpec | null,
-  runtime: { seed: number; time: number; docstep: number },
-  slotId: string,
-  assets: AssetItem[],
-  count = 12,
-): SlotSimulationRow[] {
-  if (!spec) return [];
-  const rows: SlotSimulationRow[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const nextRuntime = {
-      ...runtime,
-      docstep: runtime.docstep + i,
-      time: Math.round((runtime.time + i) * 100) / 100,
-    };
-    const value = resolveSlotValue(spec, nextRuntime, slotId, assets) ?? "";
-    rows.push({ docstep: nextRuntime.docstep, time: nextRuntime.time, value: value || "—" });
-  }
-  return rows;
-}
-
-function filterAssetsByTags(assets: AssetItem[], tags: string[]): AssetItem[] {
-  if (!tags.length) return assets;
-  return assets.filter((asset) => tags.every((tag) => asset.tags.includes(tag)));
+  const { value } = computeSlotValue(program.spec, (node as any).refresh, runtime, node.id, assets);
+  return value.kind === "asset" ? value.label : value.text;
 }
 
 function describeGenerator(spec: SlotGeneratorSpec | null): { label: string; value: string }[] {
@@ -2789,36 +3452,6 @@ function wrapExpressionValue(expr: any): Record<string, unknown> {
   return { kind: "ExpressionValue", expr };
 }
 
-function seededIndex(runtime: { seed: number; time: number; docstep: number }, slotId: string, length: number): number {
-  if (length <= 0) return 0;
-  const base = hashString(slotId) + runtime.seed * 97 + runtime.docstep * 13 + Math.floor(runtime.time) * 3;
-  const hashed = hashNumber(base);
-  return Math.abs(hashed) % length;
-}
-
-function seededRandom(runtime: { seed: number; time: number; docstep: number }, slotId: string): number {
-  const base = hashString(slotId) + runtime.seed * 131 + runtime.docstep * 17 + Math.floor(runtime.time);
-  const hashed = hashNumber(base);
-  return (hashed >>> 0) / 4294967295;
-}
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
-
-function hashNumber(value: number): number {
-  let x = value | 0;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  return x;
-}
-
 function isLiteralProp(value: unknown): boolean {
   return Boolean(value && typeof value === "object" && (value as any).kind === "LiteralValue");
 }
@@ -2866,6 +3499,7 @@ const IGNORED_SLOT_PROP_KEYS = new Set([
   "reserve",
   "fit",
   "refresh",
+  "transition",
   "frame",
   "src",
   "title",
@@ -2896,13 +3530,6 @@ function buildPreviewSrc(basePath?: string, revision?: number): string {
 function getFileParam(): string | null {
   if (typeof window === "undefined") return null;
   return new URLSearchParams(window.location.search).get("file");
-}
-
-function parseRefresh(value: string): RefreshPolicy | undefined {
-  if (value === "onDocstep") return { kind: "onDocstep" };
-  if (value === "every") return { kind: "every", amount: 1, unit: "s" } as RefreshPolicy;
-  if (value === "never") return { kind: "never" };
-  return { kind: "onLoad" };
 }
 
 function nextId(prefix: string, ids: Set<string>) {
@@ -3079,4 +3706,20 @@ function getStoredWidth(key: "outline" | "inspector", fallback: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function toSeconds(amount: number, unit: string): number {
+  if (!Number.isFinite(amount)) return 0;
+  const normalized = unit.toLowerCase();
+  if (normalized === "ms") return amount / 1000;
+  if (normalized === "m") return amount * 60;
+  return amount;
+}
+
+function getTransitionDurationMs(transition?: SlotTransitionSpec | null): number {
+  if (!transition) return 0;
+  if (transition.kind === "fade" || transition.kind === "wipe" || transition.kind === "flash") {
+    return Math.max(0, transition.durationMs ?? 0);
+  }
+  return 0;
 }
