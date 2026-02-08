@@ -1,6 +1,7 @@
 import {
   Badge,
   ChannelBadge,
+  FluxBadge,
   CiBadge,
   DiscordBadge,
   DocsBadge,
@@ -9,7 +10,6 @@ import {
   SecurityBadge,
 } from "@flux-lang/brand";
 import { Link } from "react-router-dom";
-import { FluxBadge } from "./FluxBadge";
 import { SiteContainer } from "./SiteContainer";
 import { FLUX_VERSION } from "../config/fluxMeta";
 import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";

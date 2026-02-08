@@ -25,7 +25,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp src/flux-mark-badge.svg dist/flux-mark-badge.svg",
     "dev": "tsc -p tsconfig.json --watch",
     "prepare": "npm run build",
     "test": "vitest"
