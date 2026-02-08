@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { FluxBadge } from "./FluxBadge";
 import { SiteContainer } from "./SiteContainer";
+import { FLUX_VERSION } from "../config/fluxMeta";
+import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
 
 const FOOTER_LINKS = [
   {
@@ -28,6 +30,8 @@ const FOOTER_LINKS = [
 ];
 
 export function Footer() {
+  const releaseVersion = useFluxReleaseVersion(FLUX_VERSION ?? "0.0.0-dev");
+
   return (
     <footer className="mt-16 border-t border-slate-200 bg-slate-50/60 text-slate-700">
       <SiteContainer className="py-12">
@@ -41,7 +45,7 @@ export function Footer() {
             <div className="space-y-3">
               <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Badges</div>
               <div className="flex flex-wrap items-center gap-2">
-                <FluxBadge />
+                <FluxBadge version={releaseVersion} />
                 <span className="rounded-full border border-dashed border-slate-300 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400">
                   More soon
                 </span>
