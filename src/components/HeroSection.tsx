@@ -10,7 +10,7 @@ export function HeroSection({ children }: HeroSectionProps) {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <section className="relative overflow-hidden bg-white text-slate-900">
+    <section className="relative overflow-hidden bg-[var(--surface-0)] text-[var(--fg)]">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-flux-hero" />
       <motion.div
         className="pointer-events-none absolute inset-0 -z-10"
@@ -19,12 +19,12 @@ export function HeroSection({ children }: HeroSectionProps) {
         transition={shouldReduceMotion ? { duration: 0 } : { duration: 2, ease: [0.16, 1, 0.3, 1] }}
       >
         <motion.div
-          className="absolute -left-24 top-10 h-44 w-44 rounded-full bg-sky-100"
+          className="absolute -left-24 top-10 h-44 w-44 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
           animate={shouldReduceMotion ? undefined : { y: [0, -10, 6, 0], rotate: [0, 4, -3, 0] }}
           transition={shouldReduceMotion ? { duration: 0 } : { duration: 9, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute -right-28 bottom-8 h-56 w-56 rounded-full bg-sky-50"
+          className="absolute -right-28 bottom-8 h-56 w-56 rounded-full bg-[color-mix(in_srgb,var(--accent-2)_10%,transparent)]"
           animate={shouldReduceMotion ? undefined : { y: [0, 12, -8, 0], rotate: [0, -3, 2, 0] }}
           transition={
             shouldReduceMotion ? { duration: 0 } : { duration: 10.5, repeat: Infinity, ease: "easeInOut" }

@@ -43,7 +43,14 @@ export default function EditLandingPage() {
               <span className="font-mono">flux edit</span>.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Link to="/tooling" className={buttonClasses({ variant: "primary", size: "md" })}>
+              <Link
+                to="/tooling"
+                className={buttonClasses({
+                  variant: "primary",
+                  size: "md",
+                  className: "flux-gradient-bg text-white",
+                })}
+              >
                 Tooling / Install
               </Link>
               <Link to="/docs" className={buttonClasses({ variant: "secondary", size: "md" })}>
