@@ -5,7 +5,6 @@ import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lan
 import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
 import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
-import { type Theme, useTheme } from "../lib/theme";
 import { SiteContainer } from "./SiteContainer";
 
 const NAV_ITEMS = [
@@ -16,19 +15,12 @@ const NAV_ITEMS = [
   { path: "/roadmap", label: "Roadmap" },
 ];
 
-const THEME_OPTIONS: { value: Theme; label: string }[] = [
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-  { value: "blueprint", label: "Blueprint" },
-];
-
 export function Header() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [brandInfo, setBrandInfo] = useState<FluxVersionInfo>(() => coerceVersionInfo({ version: "0.0.0" }));
   const location = useLocation();
-  const { theme, setTheme } = useTheme();
 
   const closeMenu = () => setIsOpen(false);
   const toggleMenu = () => setIsOpen((prev) => !prev);
@@ -138,27 +130,6 @@ export function Header() {
           >
             GitHub
           </motion.a>
-          <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-1)] p-1 text-[11px] font-semibold">
-            {THEME_OPTIONS.map((option) => {
-              const isActive = theme === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setTheme(option.value)}
-                  className={[
-                    "rounded-full px-2.5 py-1 transition",
-                    isActive
-                      ? "bg-[var(--surface-2)] text-[var(--fg)] shadow-sm"
-                      : "text-[var(--muted)] hover:text-[var(--fg)]",
-                  ].join(" ")}
-                  aria-pressed={isActive}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
         </nav>
 
         <button
@@ -233,30 +204,6 @@ export function Header() {
                   </a>
                 </li>
               </ul>
-              <div className="mt-3 flex flex-wrap gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-2 text-[11px] font-semibold">
-                {THEME_OPTIONS.map((option) => {
-                  const isActive = theme === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setTheme(option.value);
-                        closeMenu();
-                      }}
-                      className={[
-                        "rounded-full px-2.5 py-1 transition",
-                        isActive
-                          ? "bg-[var(--surface-2)] text-[var(--fg)] shadow-sm"
-                          : "text-[var(--muted)] hover:text-[var(--fg)]",
-                      ].join(" ")}
-                      aria-pressed={isActive}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </motion.nav>
         )}
