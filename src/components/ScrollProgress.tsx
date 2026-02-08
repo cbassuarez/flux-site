@@ -6,14 +6,14 @@ export function ScrollProgress() {
   const opacity = useTransform(scrollYProgress, [0, 0.03], [0, 1]);
 
   return (
-    <div className="pointer-events-none fixed left-0 top-0 z-40 h-[3px] w-full">
+    <div className="pointer-events-none fixed right-0 top-0 z-40 h-full w-[3px]">
       <div className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--fg)_10%,transparent)]" />
       <motion.div
-        className="absolute inset-0 origin-left"
+        className="absolute inset-0 origin-top"
         style={{
-          scaleX: shouldReduceMotion ? 1 : scrollYProgress,
+          scaleY: shouldReduceMotion ? 1 : scrollYProgress,
           opacity: shouldReduceMotion ? 0.8 : opacity,
-          background: "linear-gradient(96deg, var(--accent) 0%, var(--accent-2) 100%)",
+          background: "var(--flux-accent-gradient)",
         }}
       />
     </div>

@@ -65,6 +65,20 @@ body {
   color: var(--fg);
 }
 
+html {
+  scrollbar-width: none;
+}
+
+body {
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 #root {
   @apply min-h-screen;
 }
