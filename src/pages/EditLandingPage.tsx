@@ -54,7 +54,7 @@ export default function EditLandingPage() {
                 <code className="mt-2 block font-mono">flux self update</code>
                 <code className="mt-1 block font-mono">flux</code>
                 <p className="mt-2 text-[11px] text-[var(--muted)]">
-                  The <span className="font-mono">flux</span> command opens the launcher and editor locally, when you open -> edit a file or create a flux file.
+                  The <span className="font-mono">flux</span> command opens the launcher and editor locally, when you edit a file or create a flux file.
                 </p>
               </div>
             </div>
