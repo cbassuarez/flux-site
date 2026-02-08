@@ -5,13 +5,53 @@
 :root {
   --font-display: "Noto Serif Display", ui-serif, Georgia, serif;
   --font-body: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --surface-0: #0b0f17;
+  --surface-1: #111827;
+  --surface-2: #1f2937;
+  --surface-3: #283449;
+  --fg: #e2e8f0;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --ring: #38bdf8;
+  --accent: #22d3ee;
+  --accent-2: #3b82f6;
+  --accent-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+html[data-theme="light"] {
+  --surface-0: #f8fafc;
+  --surface-1: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-3: #e2e8f0;
+  --fg: #0f172a;
+  --muted: #475569;
+  --border: #e2e8f0;
+  --ring: #38bdf8;
+  --accent: #06b6d4;
+  --accent-2: #2563eb;
+  --accent-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+html[data-theme="blueprint"] {
+  --surface-0: #0b1b2d;
+  --surface-1: #0f243b;
+  --surface-2: #132a45;
+  --surface-3: #1b3354;
+  --fg: #e2f0ff;
+  --muted: #9fb6d3;
+  --border: #25405c;
+  --ring: #5ac8fa;
+  --accent: #2dd4ff;
+  --accent-2: #7dd3fc;
+  --accent-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 html,
 body,
 #root {
   min-height: 100%;
-  background-color: #ffffff;
+  background-color: var(--surface-0);
+  color: var(--fg);
 }
 
 html,
@@ -20,7 +60,23 @@ body {
 }
 
 body {
-  @apply bg-white font-body text-slate-900 antialiased;
+  @apply font-body antialiased;
+  background-color: var(--surface-0);
+  color: var(--fg);
+}
+
+html {
+  scrollbar-width: none;
+}
+
+body {
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 #root {
@@ -50,17 +106,35 @@ body {
   min-height: 100vh;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
-  background-color: #ffffff;
+  background-color: var(--surface-0);
 }
 
 /* Hero background motif */
 .bg-flux-hero {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--surface-0);
+  isolation: isolate;
+}
+
+.bg-flux-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background:
-    radial-gradient(circle at top left, rgba(0, 205, 254, 0.18), transparent 55%),
-    radial-gradient(circle at top right, rgba(0, 205, 254, 0.14), transparent 55%),
-    radial-gradient(circle at bottom, rgba(15, 23, 42, 0.04), transparent 60%),
-    #ffffff;
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 55%),
+    radial-gradient(circle at bottom, color-mix(in srgb, var(--fg) 6%, transparent), transparent 60%);
+  opacity: 0.9;
+  mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
   animation: flux-hero-drift 18s ease-in-out infinite alternate;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-flux-hero > * {
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes flux-hero-drift {
@@ -73,7 +147,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bg-flux-hero {
+  .bg-flux-hero::before {
     animation: none;
   }
 }

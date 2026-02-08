@@ -6,6 +6,7 @@ import RoadmapPage from "./pages/RoadmapPage";
 import { Header } from "./components/Header";
 import EditLandingPage from "./pages/EditLandingPage";
 import { Footer } from "./components/Footer";
+import { ScrollProgress } from "./components/ScrollProgress";
 
 function DefaultLayout() {
   return (
@@ -20,7 +21,8 @@ function DefaultLayout() {
 
 function SiteShell() {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-[var(--surface-0)] text-[var(--fg)]">
+      <ScrollProgress />
       <Header />
       <Outlet />
     </div>
