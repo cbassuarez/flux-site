@@ -17,13 +17,34 @@ export default function EditLandingPage() {
       <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-[var(--fg)]">Here by accident?</h2>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              Web docs • Not the editor UI
+            </div>
+            <h2 className="mt-3 text-base font-semibold text-[var(--fg)]">Here by accident?</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              Flux is local-first. If you were looking for docs or tooling instead of the editor, these links will get you back on track.
+              This site does not host an in-browser editor. The Flux editor is local-first and runs on your machine.
+            </p>
+            <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">You probably want…</div>
+              <ul className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+                <li>
+                  <span className="font-semibold text-[var(--fg)]">Docs</span> — language + spec
+                </li>
+                <li>
+                  <span className="font-semibold text-[var(--fg)]">Tooling</span> — install, CLI tasks, editor overview
+                </li>
+                <li>
+                  <span className="font-semibold text-[var(--fg)]">GitHub</span> — source, issues, releases
+                </li>
+              </ul>
+            </div>
+            <p className="mt-3 text-xs text-[var(--muted)]">
+              Trying to edit a <span className="font-mono">.flux</span> file right now? Install CLI → run{" "}
+              <span className="font-mono">flux edit</span>.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link to="/tooling" className={buttonClasses({ variant: "primary", size: "md" })}>
-                Get started
+                Tooling / Install
               </Link>
               <Link to="/docs" className={buttonClasses({ variant: "secondary", size: "md" })}>
                 Docs
