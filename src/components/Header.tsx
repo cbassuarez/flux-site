@@ -53,6 +53,7 @@ export function Header() {
               info={brandInfo}
               variant="marketing"
               markPath="/flux-mark-favicon.svg"
+              markRenderMode="color"
               showTagline
               onVersionClick={openDocsFromVersion}
               line2ClassName="text-[11px] text-slate-500"
@@ -63,6 +64,7 @@ export function Header() {
               info={brandInfo}
               variant="menu"
               markPath="/flux-mark-favicon.svg"
+              markRenderMode="color"
               showTagline={false}
               title={FLUX_TAGLINE}
               onVersionClick={openDocsFromVersion}
