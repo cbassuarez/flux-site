@@ -7,6 +7,7 @@ import { Header } from "./components/Header";
 import EditLandingPage from "./pages/EditLandingPage";
 import { Footer } from "./components/Footer";
 import { ScrollProgress } from "./components/ScrollProgress";
+import { ThemeOrb } from "./components/ThemeOrb";
 
 function DefaultLayout() {
   return (
@@ -24,6 +25,7 @@ function SiteShell() {
     <div className="min-h-screen bg-[var(--surface-0)] text-[var(--fg)]">
       <ScrollProgress />
       <Header />
+      <ThemeOrb />
       <Outlet />
     </div>
   );
