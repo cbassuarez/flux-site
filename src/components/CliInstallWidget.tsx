@@ -29,7 +29,7 @@ export function CliInstallWidget() {
       <div className="flex flex-col gap-4 px-5 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Install via npm
+            I. Install via npm
           </span>
           <motion.button
             type="button"
@@ -46,13 +46,13 @@ export function CliInstallWidget() {
         </code>
         <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500 sm:justify-start">
           <span>
-            Update Flux anytime:{" "}
+            II. Update Flux:{" "}
             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
               flux self update
             </code>
           </span>
           <span>
-            Run:{" "}
+            III. Run Launcher:{" "}
             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
               flux
             </code>
