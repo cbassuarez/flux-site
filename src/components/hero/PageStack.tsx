@@ -150,7 +150,7 @@ export function PageStack() {
           <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
             Flux document
           </span>
-          <h2 className="font-sans text-3xl font-semibold tracking-tight text-slate-900">
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-slate-900">
             {metaTitle}
           </h2>
           <p className="text-xs text-slate-500">Version {metaVersion}</p>
@@ -173,7 +173,7 @@ export function PageStack() {
       label: "State",
       content: (
         <div className="space-y-4">
-          <h3 className="font-sans text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
             Params
           </h3>
           <div className="space-y-2">
@@ -203,7 +203,7 @@ export function PageStack() {
       label: "Grid",
       content: (
         <div className="space-y-4">
-          <h3 className="font-sans text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
             Grid {gridName}
           </h3>
           <FigureSlotDemo
@@ -223,7 +223,7 @@ export function PageStack() {
       label: "Runtime",
       content: (
         <div className="space-y-4">
-          <h3 className="font-sans text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
             Runtime + Rules
           </h3>
           <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[10px] text-slate-600">
