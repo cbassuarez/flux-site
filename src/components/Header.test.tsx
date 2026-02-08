@@ -26,7 +26,7 @@ describe("Header", () => {
       expect(screen.getAllByText("v0.1.4").length).toBeGreaterThan(0);
     });
 
-    expect(screen.getAllByText("flux").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("flux-wordmark").length).toBeGreaterThan(0);
     expect(screen.getAllByText(FLUX_TAGLINE).length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("flux-mark").length).toBeGreaterThan(0);
     expect(document.querySelector('.flux-brand-wordmark[data-flux-ligatures="enabled"]')).toBeTruthy();
