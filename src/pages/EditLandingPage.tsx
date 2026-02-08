@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { PageLayout } from "../components/PageLayout";
 import { buttonClasses } from "../components/ui/Button";
+import { FluxLens } from "../components/ui/FluxLens";
 
 export default function EditLandingPage() {
   return (
@@ -17,7 +18,11 @@ export default function EditLandingPage() {
       <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-[var(--fg)]">Here by accident?</h2>
+            <h2 className="text-base font-semibold text-[var(--fg)]">
+              <FluxLens as="span" className="inline-block">
+                Here by accident?
+              </FluxLens>
+            </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               Flux is local-first. If you were looking for docs or tooling instead of the editor, these links will get you back on track.
             </p>
@@ -40,7 +45,11 @@ export default function EditLandingPage() {
           </section>
 
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-[var(--fg)]">Here on purpose? Launch the editor</h2>
+            <h2 className="text-base font-semibold text-[var(--fg)]">
+              <FluxLens as="span" className="inline-block">
+                Here on purpose? Launch the editor
+              </FluxLens>
+            </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               The Flux editor is always local-first. It runs on your machine and reads/writes local files only.
             </p>

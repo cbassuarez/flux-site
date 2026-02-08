@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SiteContainer } from "./SiteContainer";
+import { FluxLens } from "./ui/FluxLens";
 
 type PageLayoutProps = {
   title: string;
@@ -28,7 +29,11 @@ export function PageLayout({
         <div className={mergedContentClassName}>
           <header className="mb-6 space-y-2">
             {eyebrow && <div className="mb-2">{eyebrow}</div>}
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--fg)] sm:text-2xl">{title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-[var(--fg)] sm:text-2xl">
+              <FluxLens as="span" className="inline-block">
+                {title}
+              </FluxLens>
+            </h1>
             {subtitle && <p className="text-sm text-[var(--muted)]">{subtitle}</p>}
             {headerSlot && <div className="pt-2">{headerSlot}</div>}
           </header>

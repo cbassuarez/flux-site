@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
+import { FluxLens } from "../components/ui/FluxLens";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -49,7 +50,11 @@ function RoadmapCard({
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[var(--fg)]">{title}</h3>
+        <h3 className="text-sm font-semibold text-[var(--fg)]">
+          <FluxLens as="span" className="inline-block">
+            {title}
+          </FluxLens>
+        </h3>
         <StatusPill status={status} />
       </div>
       <p className="text-xs leading-relaxed text-[var(--muted)]">{children}</p>
@@ -67,7 +72,9 @@ function TrackSection({
   return (
     <section className="space-y-4">
       <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-        {title}
+        <FluxLens as="span" className="inline-block">
+          {title}
+        </FluxLens>
       </h3>
       <div className="grid gap-4 md:grid-cols-2">{children}</div>
     </section>
@@ -85,7 +92,11 @@ export default function RoadmapPage() {
     >
       <section id="overview" className="space-y-6 scroll-mt-24">
         <div className="space-y-3 max-w-3xl">
-          <h2 className="text-lg font-semibold text-[var(--fg)]">Overview</h2>
+          <h2 className="text-lg font-semibold text-[var(--fg)]">
+            <FluxLens as="span" className="inline-block">
+              Overview
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base leading-relaxed text-[var(--muted)]">
             Flux is a versioned spec, a canonical JSON IR contract, and a local-first toolchain that keeps the editor,
             CLI, and launcher in sync.
@@ -118,7 +129,11 @@ export default function RoadmapPage() {
 
       <section id="now" className="space-y-8 scroll-mt-24">
         <div className="space-y-2 max-w-3xl">
-          <h2 className="text-lg font-semibold text-[var(--fg)]">Now (v0.1)</h2>
+          <h2 className="text-lg font-semibold text-[var(--fg)]">
+            <FluxLens as="span" className="inline-block">
+              Now (v0.1)
+            </FluxLens>
+          </h2>
           <p className="text-sm text-[var(--muted)]">
             The current release focuses on a stable launcher + CLI, local-first editor workflows, and a versioned IR contract.
           </p>
@@ -159,7 +174,11 @@ export default function RoadmapPage() {
 
       <section id="next" className="space-y-8 scroll-mt-24">
         <div className="space-y-2 max-w-3xl">
-          <h2 className="text-lg font-semibold text-[var(--fg)]">Next (near-term)</h2>
+          <h2 className="text-lg font-semibold text-[var(--fg)]">
+            <FluxLens as="span" className="inline-block">
+              Next (near-term)
+            </FluxLens>
+          </h2>
           <p className="text-sm text-[var(--muted)]">
             Near-term improvements focus on polishing the launcher experience, sharpening workflows, and rounding out the IR contract.
           </p>
@@ -200,7 +219,11 @@ export default function RoadmapPage() {
 
       <section id="later" className="space-y-8 scroll-mt-24">
         <div className="space-y-2 max-w-3xl">
-          <h2 className="text-lg font-semibold text-[var(--fg)]">Later (exploratory)</h2>
+          <h2 className="text-lg font-semibold text-[var(--fg)]">
+            <FluxLens as="span" className="inline-block">
+              Later (exploratory)
+            </FluxLens>
+          </h2>
           <p className="text-sm text-[var(--muted)]">
             Exploratory work stays intentionally tentative and will be scoped only after near-term goals ship.
           </p>
@@ -240,7 +263,11 @@ export default function RoadmapPage() {
       </section>
 
       <section id="principles" className="space-y-4 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-[var(--fg)]">Principles</h2>
+        <h2 className="text-lg font-semibold text-[var(--fg)]">
+          <FluxLens as="span" className="inline-block">
+            Principles
+          </FluxLens>
+        </h2>
         <ul className="list-disc space-y-2 pl-5 text-sm text-[var(--muted)] max-w-3xl">
           <li>Local-first by default — no hosted editor assumptions.</li>
           <li>Versioned IR contract with clear stability labels.</li>

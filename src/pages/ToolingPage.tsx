@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
+import { FluxLens } from "../components/ui/FluxLens";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 const docsUrl = "/docs";
@@ -196,7 +197,11 @@ export default function ToolingPage() {
       }
     >
       <section id="overview" className="space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-light text-slate-900">Tooling From Day One</h2>
+        <h2 className="text-lg font-light text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Tooling From Day One
+          </FluxLens>
+        </h2>
         <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
           Flux is a language kit: a core library, CLI, and editor tooling that share the same IR. Everything runs
           locally, so there’s no cloud requirement.
@@ -205,7 +210,11 @@ export default function ToolingPage() {
 
       <section id="install" className="space-y-5 scroll-mt-24">
         <div className="space-y-2">
-          <h2 className="text-lg font-light text-slate-900">One Install, Everything</h2>
+          <h2 className="text-lg font-light text-slate-900">
+            <FluxLens as="span" className="inline-block">
+              One Install, Everything
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             The launcher stays lightweight and manages the rest of the toolchain on your machine.
           </p>
@@ -227,7 +236,11 @@ export default function ToolingPage() {
 
       <section id="launcher" className="space-y-6 scroll-mt-24">
         <div className="space-y-2">
-          <h2 className="text-lg font-light text-slate-900">Launcher (flux)</h2>
+          <h2 className="text-lg font-light text-slate-900">
+            <FluxLens as="span" className="inline-block">
+              Launcher (flux)
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             Running <span className="font-mono">flux</span> opens the launcher UI. From there you can open projects,
             create new work, and manage the toolchain — all locally.
@@ -266,7 +279,11 @@ export default function ToolingPage() {
 
       <section id="cli" className="space-y-6 scroll-mt-24">
         <div className="space-y-2">
-          <h2 className="text-lg font-light text-slate-900">CLI Tasks (Scriptable)</h2>
+          <h2 className="text-lg font-light text-slate-900">
+            <FluxLens as="span" className="inline-block">
+              CLI Tasks (Scriptable)
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             The CLI is task-oriented and designed for scripting, automation, and quick project work.
           </p>
@@ -291,7 +308,11 @@ export default function ToolingPage() {
 
       <section id="editor" className="space-y-6 scroll-mt-24">
         <div className="space-y-2">
-          <h2 className="text-lg font-light text-slate-900">Editor</h2>
+          <h2 className="text-lg font-light text-slate-900">
+            <FluxLens as="span" className="inline-block">
+              Editor
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             The editor runs locally. Launch it by running <span className="font-mono">flux</span> and selecting
             <span className="font-mono"> edit</span> from the palette, or call <span className="font-mono">flux edit</span>
@@ -303,7 +324,11 @@ export default function ToolingPage() {
 
       <section id="core" className="space-y-5 scroll-mt-24">
         <div className="space-y-2">
-          <h2 className="text-lg font-light text-slate-900">Core Library: @flux-lang/core</h2>
+          <h2 className="text-lg font-light text-slate-900">
+            <FluxLens as="span" className="inline-block">
+              Core Library: @flux-lang/core
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             Core is the source of truth for the AST/IR, parser, and checks. The CLI and editor are layered on top.
           </p>
@@ -329,7 +354,11 @@ const state1 = runDocstepOnce(doc, state0);`}
 
       <section id="vscode" className="space-y-6 scroll-mt-24">
         <div className="space-y-2">
-          <h2 className="text-lg font-light text-slate-900">VS Code Extension</h2>
+          <h2 className="text-lg font-light text-slate-900">
+            <FluxLens as="span" className="inline-block">
+              VS Code Extension
+            </FluxLens>
+          </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             The VS Code extension is focused on fast feedback for <span className="font-mono">.flux</span> files.
           </p>

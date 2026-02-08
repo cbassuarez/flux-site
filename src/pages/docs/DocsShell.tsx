@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { DocsRenderer } from "./DocsRenderer";
 import { defaultDocSlug, docsSections, getDocsPage } from "./docsMap";
 import { SiteContainer } from "../../components/SiteContainer";
+import { FluxLens } from "../../components/ui/FluxLens";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 
@@ -102,7 +103,9 @@ export default function DocsShell() {
                 <div className="space-y-3">
                   <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{page?.section ?? "Docs"}</div>
                   <h1 className="font-display text-3xl font-light tracking-tight text-slate-900 md:text-4xl">
-                    {pageTitle}
+                    <FluxLens as="span" className="inline-block">
+                      {pageTitle}
+                    </FluxLens>
                   </h1>
                   <p className="text-sm text-slate-600 md:text-base">{pageDescription}</p>
                 </div>

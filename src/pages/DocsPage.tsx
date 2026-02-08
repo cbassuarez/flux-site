@@ -1,6 +1,7 @@
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
+import { FluxLens } from "../components/ui/FluxLens";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -187,7 +188,11 @@ so the same inputs always yield the same outputs.`;
               <Chip>paged HTML + PDF</Chip>
             </div>
 
-            <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              <FluxLens as="span" className="inline-block">
+                Overview
+              </FluxLens>
+            </h2>
 
             <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
               Flux is a <span className="font-semibold">deterministic</span>,{" "}
@@ -251,7 +256,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* Mental model */}
       <section id="model" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">Mental model</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Mental model
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           Flux has a small, explicit pipeline: source → runtime snapshot → paged render.
           Live playback advances <span className="font-mono">docstep</span> and/or <span className="font-mono">time</span>,
@@ -262,7 +271,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* .flux essentials */}
       <section id="source" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">.flux essentials</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            .flux essentials
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           You don’t need the full grammar to understand Flux’s contract. The key pieces are:
           pages/sections/text, layout-locked slots, and asset selection via banks.
@@ -277,7 +290,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* Runtime snapshot */}
       <section id="runtime" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">Runtime IR snapshot</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Runtime IR snapshot
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           Flux evaluates a document into a canonical runtime snapshot. This is what{" "}
           <span className="font-mono">flux step</span> and <span className="font-mono">flux tick</span> return.
@@ -288,7 +305,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* Slots */}
       <section id="slots" className="mt-10 space-y-4 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">Slots: reserve + fit + refresh</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Slots: reserve + fit + refresh
+          </FluxLens>
+        </h2>
 
         <Callout title="Invariant">
           Anything that changes during playback must render inside a{" "}
@@ -318,7 +339,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* Assets */}
       <section id="assets" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">Assets &amp; banks</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Assets &amp; banks
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           Assets are discovered from bank folders (glob patterns) and can be queried by tags. Picks are deterministic
           with respect to the runtime parameters so documents are reproducible.
@@ -333,7 +358,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* Rendering pipeline */}
       <section id="rendering" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">Rendering pipeline</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Rendering pipeline
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           The viewer renders paged HTML (paper-like pages) and can export PDF. During live playback, it advances{" "}
           <span className="font-mono">docstep</span>/<span className="font-mono">time</span>, re-evaluates, and patches only
@@ -351,7 +380,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* CLI cookbook */}
       <section id="cli" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">CLI cookbook</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            CLI cookbook
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           Flux is designed to be verifiable from the terminal: view, step, tick, export. These are the fastest ways to
           understand the runtime.
@@ -361,7 +394,11 @@ so the same inputs always yield the same outputs.`;
 
       {/* Safety */}
       <section id="safety" className="mt-10 space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-semibold text-slate-900">Safety model</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          <FluxLens as="span" className="inline-block">
+            Safety model
+          </FluxLens>
+        </h2>
         <p className="text-sm text-slate-700 leading-relaxed">
           Flux documents are treated as untrusted by default. Viewer behavior should be safe-by-default:
           no arbitrary remote fetch, no script execution from documents, and strict handling of assets and paths.

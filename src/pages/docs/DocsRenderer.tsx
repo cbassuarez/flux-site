@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { FluxLens } from "../../components/ui/FluxLens";
 
 const headingClasses = {
   h2: "font-display text-2xl font-normal tracking-tight text-slate-900",
@@ -45,9 +46,27 @@ export function DocsRenderer({ content }: { content: string }) {
       remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => <h2 className="sr-only">{children}</h2>,
-        h2: ({ children }) => <h2 className={headingClasses.h2}>{children}</h2>,
-        h3: ({ children }) => <h3 className={headingClasses.h3}>{children}</h3>,
-        h4: ({ children }) => <h4 className={headingClasses.h4}>{children}</h4>,
+        h2: ({ children }) => (
+          <h2 className={headingClasses.h2}>
+            <FluxLens as="span" className="inline-block">
+              {children}
+            </FluxLens>
+          </h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className={headingClasses.h3}>
+            <FluxLens as="span" className="inline-block">
+              {children}
+            </FluxLens>
+          </h3>
+        ),
+        h4: ({ children }) => (
+          <h4 className={headingClasses.h4}>
+            <FluxLens as="span" className="inline-block">
+              {children}
+            </FluxLens>
+          </h4>
+        ),
         p: ({ children }) => <p className="text-sm leading-relaxed text-slate-700 md:text-base">{children}</p>,
         a: ({ href, children }) => (
           <a

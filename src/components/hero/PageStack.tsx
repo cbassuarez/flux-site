@@ -5,6 +5,7 @@ import { seededFloat, seededIndex } from "./determinism";
 import { FigureSlotDemo } from "./FigureSlotDemo";
 import { InlineSlotDemo } from "./InlineSlotDemo";
 import { Page } from "./Page";
+import { FluxLens } from "../ui/FluxLens";
 
 const FLUX_SOURCE = `document {
   meta {
@@ -151,7 +152,9 @@ export function PageStack() {
             Flux document
           </span>
           <h2 className="font-display text-3xl font-semibold tracking-tight text-slate-900">
-            {metaTitle}
+            <FluxLens as="span" className="inline-block">
+              {metaTitle}
+            </FluxLens>
           </h2>
           <p className="text-xs text-slate-500">Version {metaVersion}</p>
           <div className="mt-3 grid gap-2 text-[11px] text-slate-500">
@@ -174,7 +177,9 @@ export function PageStack() {
       content: (
         <div className="space-y-4">
           <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-            Params
+            <FluxLens as="span" className="inline-block">
+              Params
+            </FluxLens>
           </h3>
           <div className="space-y-2">
             {paramSnapshots.map((param) => (
@@ -204,7 +209,9 @@ export function PageStack() {
       content: (
         <div className="space-y-4">
           <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-            Grid {gridName}
+            <FluxLens as="span" className="inline-block">
+              Grid {gridName}
+            </FluxLens>
           </h3>
           <FigureSlotDemo
             rows={safeGridRows}
@@ -224,7 +231,9 @@ export function PageStack() {
       content: (
         <div className="space-y-4">
           <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-            Runtime + Rules
+            <FluxLens as="span" className="inline-block">
+              Runtime + Rules
+            </FluxLens>
           </h3>
           <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[10px] text-slate-600">
             <div>runtime {"{"}</div>
