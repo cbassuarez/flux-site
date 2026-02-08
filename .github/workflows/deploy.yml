@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "badges/**"
 
 permissions:
   contents: read
@@ -16,6 +18,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
 
     steps:
@@ -44,6 +47,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -52,3 +56,68 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  regenerate_badges:
+    needs: deploy
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Regenerate badges and commit if changed
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEFAULT_BRANCH="main"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "${DEFAULT_BRANCH}"
+          git checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
+          git pull --ff-only origin "${DEFAULT_BRANCH}"
+
+          npm run badges:generate
+
+          add_paths=()
+          for path in badges/generated; do
+            if [ -e "${path}" ]; then
+              add_paths+=("${path}")
+            fi
+          done
+
+          if [ ${#add_paths[@]} -eq 0 ]; then
+            echo "No badge output paths found; skipping commit."
+            exit 0
+          fi
+
+          git add -A -- "${add_paths[@]}"
+
+          if git diff --cached --quiet; then
+            echo "No badge changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(badges): regenerate SVGs [skip release] [skip ci]"
+
+          if ! git push origin "HEAD:${DEFAULT_BRANCH}"; then
+            echo "::error::Badge push failed. Configure GitHub Actions to push directly to ${DEFAULT_BRANCH}."
+            exit 1
+          fi
