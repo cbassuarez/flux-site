@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { HeroPacket } from "../components/hero/HeroPacket";
 import { SiteContainer } from "../components/SiteContainer";
+import { WhatIsFluxSection } from "../components/WhatIsFluxSection";
 
 export default function HomePage() {
   const shouldReduceMotion = useReducedMotion();
@@ -44,6 +45,7 @@ export default function HomePage() {
   return (
     <div className="space-y-14 lg:space-y-16">
       <HeroPacket />
+      <WhatIsFluxSection />
 
       <section className="border-t border-[var(--border)] bg-[var(--surface-0)] pt-12 pb-6">
         <SiteContainer className="px-2 sm:px-4 md:px-6">
