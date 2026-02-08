@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { CliInstallWidget } from "../CliInstallWidget";
 import { HeroSection } from "../HeroSection";
 import { HeroMediaCard } from "./HeroMediaCard";
+import { FluxLens } from "../ui/FluxLens";
 
 export function HeroPacket() {
   const shouldReduceMotion = useReducedMotion();
@@ -15,7 +16,9 @@ export function HeroPacket() {
               Live packet
             </div>
             <h1 className="text-3xl font-light leading-[1.05] tracking-[-0.02em] text-slate-900 drop-shadow-[0_1px_1px_rgba(15,23,42,0.18)] sm:text-4xl lg:text-5xl">
-              Deterministic, PDF-like documents that evolve docstep by docstep.
+              <FluxLens preset="hero" as="span" className="inline-block">
+                Deterministic, PDF-like documents that evolve docstep by docstep.
+              </FluxLens>
             </h1>
             <p className="text-sm leading-relaxed text-slate-600/80 sm:text-base">
               Flux keeps layout locked while inline parameters and grid slots update

@@ -5,6 +5,7 @@ import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lan
 import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
 import { SiteContainer } from "./SiteContainer";
+import { FluxLens } from "./ui/FluxLens";
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
@@ -48,28 +49,30 @@ export function Header() {
       <SiteContainer className="flex items-center justify-between py-3">
         <Link to="/" className="flex items-center text-slate-900">
           {/* Brand comes from @flux-lang/brand; do not fork. */}
-          <span className="hidden md:inline-flex">
-            <FluxBrandHeader
-              info={brandInfo}
-              variant="marketing"
-              markPath="/flux-mark-favicon.svg"
-              markRenderMode="color"
-              showTagline
-              onVersionClick={openDocsFromVersion}
-              line2ClassName="text-[11px] text-slate-500"
-            />
-          </span>
-          <span className="inline-flex md:hidden">
-            <FluxBrandHeader
-              info={brandInfo}
-              variant="menu"
-              markPath="/flux-mark-favicon.svg"
-              markRenderMode="color"
-              showTagline={false}
-              title={FLUX_TAGLINE}
-              onVersionClick={openDocsFromVersion}
-            />
-          </span>
+          <FluxLens preset="header" as="span" className="inline-flex items-center">
+            <span className="hidden md:inline-flex">
+              <FluxBrandHeader
+                info={brandInfo}
+                variant="marketing"
+                markPath="/flux-mark-favicon.svg"
+                markRenderMode="color"
+                showTagline
+                onVersionClick={openDocsFromVersion}
+                line2ClassName="text-[11px] text-slate-500"
+              />
+            </span>
+            <span className="inline-flex md:hidden">
+              <FluxBrandHeader
+                info={brandInfo}
+                variant="menu"
+                markPath="/flux-mark-favicon.svg"
+                markRenderMode="color"
+                showTagline={false}
+                title={FLUX_TAGLINE}
+                onVersionClick={openDocsFromVersion}
+              />
+            </span>
+          </FluxLens>
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
