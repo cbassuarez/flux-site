@@ -1,6 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import HomePage from "./pages/HomePage";
-import DocsPage from "./pages/DocsPage";
+import DocsShell from "./pages/docs/DocsShell";
 import ToolingPage from "./pages/ToolingPage";
 import RoadmapPage from "./pages/RoadmapPage";
 import { Header } from "./components/Header";
@@ -41,7 +41,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/edit/*" element={<EditLandingPage />} />
           <Route path="/editor" element={<Navigate to="/edit" replace />} />
-          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/*" element={<DocsShell />} />
           <Route path="/tooling" element={<ToolingPage />} />
           <Route path="/roadmap" element={<RoadmapPage />} />
         </Route>
