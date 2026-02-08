@@ -16,6 +16,7 @@
   --accent: #22d3ee;
   --accent-2: #3b82f6;
   --accent-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 30%, transparent);
+  color-scheme: dark;
 }
 
 html[data-theme="light"] {
@@ -30,6 +31,7 @@ html[data-theme="light"] {
   --accent: #06b6d4;
   --accent-2: #2563eb;
   --accent-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 28%, transparent);
+  color-scheme: light;
 }
 
 html[data-theme="blueprint"] {
@@ -44,6 +46,7 @@ html[data-theme="blueprint"] {
   --accent: #2dd4ff;
   --accent-2: #7dd3fc;
   --accent-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 26%, transparent);
+  color-scheme: dark;
 }
 
 html,
