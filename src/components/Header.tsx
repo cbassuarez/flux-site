@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lang/brand";
 import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
+import { SiteContainer } from "./SiteContainer";
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
@@ -44,7 +45,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <SiteContainer className="flex items-center justify-between py-3">
         <Link to="/" className="flex items-center text-slate-900">
           {/* Brand comes from @flux-lang/brand; do not fork. */}
           <span className="hidden md:inline-flex">
@@ -77,6 +78,7 @@ export function Header() {
               end={item.path === "/"}
               onMouseEnter={() => setHoveredPath(item.path)}
               onMouseLeave={() => setHoveredPath(null)}
+              className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               {({ isActive }) => {
                 const showIndicator = isActive || hoveredPath === item.path;
@@ -113,11 +115,12 @@ export function Header() {
           ))}
           <motion.a
             href="https://github.com/cbassuarez/flux"
-            className="hover:text-slate-900"
+            className="rounded-md hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             target="_blank"
             rel="noreferrer"
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.97 }}
+            aria-label="Flux GitHub repository"
           >
             GitHub
           </motion.a>
@@ -126,7 +129,7 @@ export function Header() {
         <button
           type="button"
           onClick={toggleMenu}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800 md:hidden"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:hidden"
           aria-label={isOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={isOpen}
         >
@@ -149,7 +152,7 @@ export function Header() {
             />
           </span>
         </button>
-      </div>
+      </SiteContainer>
 
       <AnimatePresence>
         {isOpen && (
@@ -173,7 +176,7 @@ export function Header() {
                       onClick={closeMenu}
                       className={({ isActive }) =>
                         [
-                          "block rounded-lg px-2 py-2.5 transition",
+                          "block rounded-lg px-2 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
                           isActive
                             ? "bg-slate-100 flux-gradient-text font-semibold"
                             : "hover:bg-slate-50",
@@ -189,7 +192,7 @@ export function Header() {
                   <a
                     href="https://github.com/cbassuarez/flux"
                     onClick={closeMenu}
-                    className="block rounded-lg px-2 py-2.5 transition hover:bg-slate-50"
+                    className="block rounded-lg px-2 py-2.5 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                   >
                     GitHub
                   </a>

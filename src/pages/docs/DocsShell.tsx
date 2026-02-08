@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { DocsRenderer } from "./DocsRenderer";
 import { defaultDocSlug, docsSections, getDocsPage } from "./docsMap";
+import { SiteContainer } from "../../components/SiteContainer";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 
@@ -48,7 +49,7 @@ export default function DocsShell() {
 
   return (
     <section className="bg-flux-hero py-8 text-slate-900">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SiteContainer>
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="rounded-3xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.08)] lg:sticky lg:top-6 lg:self-start">
             <div className="space-y-3">
@@ -149,7 +150,7 @@ export default function DocsShell() {
             </article>
           </div>
         </div>
-      </div>
+      </SiteContainer>
     </section>
   );
 }
