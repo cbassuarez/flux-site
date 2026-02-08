@@ -10,8 +10,10 @@ export default {
         fluxBlue: "#00CDFE"
       },
       fontFamily: {
-        sans: ["system-ui", "ui-sans-serif", "SF Pro Text", "Inter", "sans-serif"],
-        mono: ["SF Mono", "ui-monospace", "Menlo", "Monaco", "Consolas", "Liberation Mono", "monospace"]
+        sans: ["var(--font-body)", "IBM Plex Mono", "ui-monospace", "monospace"],
+        mono: ["var(--font-body)", "IBM Plex Mono", "ui-monospace", "monospace"],
+        body: ["var(--font-body)", "IBM Plex Mono", "ui-monospace", "monospace"],
+        display: ["var(--font-display)", "Noto Serif Display", "ui-serif", "serif"]
       },
       boxShadow: {
         "flux-card": "0 18px 45px rgba(0, 0, 0, 0.45)"

@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --font-display: "Noto Serif Display", "Times New Roman", serif;
+  --font-body: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+}
+
 html,
 body,
 #root {
@@ -10,11 +15,23 @@ body,
 }
 
 body {
-  @apply bg-white text-slate-900 font-sans antialiased;
+  @apply bg-white font-body text-slate-900 antialiased;
 }
 
 #root {
   @apply min-h-screen;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 400;
+  }
 }
 
 .app-shell {
