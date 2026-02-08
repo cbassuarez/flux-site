@@ -1,0 +1,12 @@
+{
+  "org": "cbassuarez",
+  "repo": "flux-site",
+  "defaultBranch": "main",
+  "docsUrl": "https://flux-lang.org/docs",
+  "discordUrl": "https://github.com/cbassuarez/flux/discussions",
+  "securityUrl": "https://github.com/cbassuarez/flux-site/security/policy",
+  "ciWorkflowFile": "deploy.yml",
+  "npmScope": "@flux-lang",
+  "npmPackages": ["@flux-lang/flux"],
+  "primaryNpmPackage": "@flux-lang/flux"
+}

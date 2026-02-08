@@ -1,3 +1,13 @@
+import {
+  Badge,
+  ChannelBadge,
+  CiBadge,
+  DiscordBadge,
+  DocsBadge,
+  LicenseBadge,
+  MaintainedBadge,
+  SecurityBadge,
+} from "@flux-lang/brand";
 import { Link } from "react-router-dom";
 import { FluxBadge } from "./FluxBadge";
 import { SiteContainer } from "./SiteContainer";
@@ -31,6 +41,10 @@ const FOOTER_LINKS = [
 
 export function Footer() {
   const releaseVersion = useFluxReleaseVersion(FLUX_VERSION ?? "0.0.0-dev");
+  const copyInstallCommand = () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    void navigator.clipboard.writeText("npm i -g @flux-lang/flux");
+  };
 
   return (
     <footer className="mt-16 border-t border-[var(--border)] bg-[var(--surface-1)] text-[var(--fg)]">
@@ -46,15 +60,26 @@ export function Footer() {
               <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">Badges</div>
               <div className="flex flex-wrap items-center gap-2">
                 <FluxBadge version={releaseVersion} />
-                <span className="rounded-full border border-dashed border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-wide text-[var(--muted)]">
-                  More soon
-                </span>
-                <span className="rounded-full border border-dashed border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-wide text-[var(--muted)]">
-                  Labs
-                </span>
-                <span className="rounded-full border border-dashed border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-wide text-[var(--muted)]">
-                  Partners
-                </span>
+                <ChannelBadge
+                  channel="stable"
+                  packageName="@flux-lang/flux"
+                  label="Channel"
+                  value="stable"
+                />
+                <CiBadge status="unknown" repo="cbassuarez/flux-site" workflowFile="deploy.yml" />
+                <LicenseBadge license="UNLICENSED" href="https://github.com/cbassuarez/flux-site/blob/main/package.json" />
+                <DocsBadge href="https://flux-lang.org/docs" />
+                <DiscordBadge />
+                <SecurityBadge repo="cbassuarez/flux-site" />
+                <MaintainedBadge maintained label="Maintained" value="yes" href="https://github.com/cbassuarez/flux-site/commits/main" />
+                <Badge
+                  kind="docs"
+                  label="Install"
+                  value="copy"
+                  onClick={copyInstallCommand}
+                  title="Copy npm i -g @flux-lang/flux"
+                  ariaLabel="Copy npm i -g @flux-lang/flux"
+                />
               </div>
             </div>
           </div>

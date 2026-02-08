@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "postbuild": "node scripts/copy-404.mjs && node scripts/copy-edit.mjs",
+    "badges:generate": "node scripts/generate-badges.mjs",
     "test": "vitest",
     "test:e2e": "playwright test"
   },
