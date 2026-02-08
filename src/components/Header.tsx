@@ -5,6 +5,7 @@ import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lan
 import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
 import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
+import { type Theme, useTheme } from "../lib/theme";
 import { SiteContainer } from "./SiteContainer";
 
 const NAV_ITEMS = [
@@ -15,12 +16,19 @@ const NAV_ITEMS = [
   { path: "/roadmap", label: "Roadmap" },
 ];
 
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "blueprint", label: "Blueprint" },
+];
+
 export function Header() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [brandInfo, setBrandInfo] = useState<FluxVersionInfo>(() => coerceVersionInfo({ version: "0.0.0" }));
   const location = useLocation();
+  const { theme, setTheme } = useTheme();
 
   const closeMenu = () => setIsOpen(false);
   const toggleMenu = () => setIsOpen((prev) => !prev);
@@ -48,9 +56,9 @@ export function Header() {
   const displayBrandInfo = { ...brandInfo, version: releaseVersion };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--surface-0)] backdrop-blur">
       <SiteContainer className="flex items-center justify-between py-3">
-        <Link to="/" className="flex items-center text-slate-900">
+        <Link to="/" className="flex items-center text-[var(--fg)]">
           {/* Brand comes from @flux-lang/brand; do not fork. */}
           <span className="hidden md:inline-flex">
             <FluxBrandHeader
@@ -60,7 +68,7 @@ export function Header() {
               markRenderMode="color"
               showTagline
               onVersionClick={openDocsFromVersion}
-              line2ClassName="text-[11px] text-slate-500"
+              line2ClassName="text-[11px] text-[var(--muted)]"
             />
           </span>
           <span className="inline-flex md:hidden">
@@ -76,7 +84,7 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
+        <nav className="hidden items-center gap-6 text-sm font-medium text-[var(--muted)] md:flex">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
@@ -84,7 +92,7 @@ export function Header() {
               end={item.path === "/"}
               onMouseEnter={() => setHoveredPath(item.path)}
               onMouseLeave={() => setHoveredPath(null)}
-              className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
             >
               {({ isActive }) => {
                 const showIndicator = isActive || hoveredPath === item.path;
@@ -97,7 +105,7 @@ export function Header() {
                     <span
                       className={[
                         "transition-colors",
-                        isActive ? "flux-gradient-text font-semibold" : "text-slate-600 hover:text-slate-900",
+                        isActive ? "flux-gradient-text font-semibold" : "text-[var(--muted)] hover:text-[var(--fg)]",
                       ].join(" ")}
                     >
                       {item.label}
@@ -121,7 +129,7 @@ export function Header() {
           ))}
           <motion.a
             href="https://github.com/cbassuarez/flux"
-            className="rounded-md hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="rounded-md hover:text-[var(--fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
             target="_blank"
             rel="noreferrer"
             whileHover={{ y: -1 }}
@@ -130,12 +138,33 @@ export function Header() {
           >
             GitHub
           </motion.a>
+          <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-1)] p-1 text-[11px] font-semibold">
+            {THEME_OPTIONS.map((option) => {
+              const isActive = theme === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTheme(option.value)}
+                  className={[
+                    "rounded-full px-2.5 py-1 transition",
+                    isActive
+                      ? "bg-[var(--surface-2)] text-[var(--fg)] shadow-sm"
+                      : "text-[var(--muted)] hover:text-[var(--fg)]",
+                  ].join(" ")}
+                  aria-pressed={isActive}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         <button
           type="button"
           onClick={toggleMenu}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:hidden"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--fg)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)] md:hidden"
           aria-label={isOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={isOpen}
         >
@@ -170,11 +199,11 @@ export function Header() {
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
             className="md:hidden"
           >
-            <div className="border-t border-slate-200 bg-white/95 px-4 pb-4 pt-2 shadow-sm">
-              <div className="mb-2 rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-500">
+            <div className="border-t border-[var(--border)] bg-[var(--surface-0)] px-4 pb-4 pt-2 shadow-sm">
+              <div className="mb-2 rounded-lg bg-[var(--surface-1)] px-2 py-1 text-[11px] text-[var(--muted)]">
                 {brandInfo.tagline}
               </div>
-              <ul className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+              <ul className="flex flex-col gap-1 text-sm font-medium text-[var(--fg)]">
                 {NAV_ITEMS.map((item) => (
                   <li key={item.path}>
                     <NavLink
@@ -182,10 +211,10 @@ export function Header() {
                       onClick={closeMenu}
                       className={({ isActive }) =>
                         [
-                          "block rounded-lg px-2 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                          "block rounded-lg px-2 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]",
                           isActive
-                            ? "bg-slate-100 flux-gradient-text font-semibold"
-                            : "hover:bg-slate-50",
+                            ? "bg-[var(--surface-2)] flux-gradient-text font-semibold"
+                            : "hover:bg-[var(--surface-1)]",
                         ].join(" ")
                       }
                       end={item.path === "/"}
@@ -198,12 +227,36 @@ export function Header() {
                   <a
                     href="https://github.com/cbassuarez/flux"
                     onClick={closeMenu}
-                    className="block rounded-lg px-2 py-2.5 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    className="block rounded-lg px-2 py-2.5 transition hover:bg-[var(--surface-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
                   >
                     GitHub
                   </a>
                 </li>
               </ul>
+              <div className="mt-3 flex flex-wrap gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-2 text-[11px] font-semibold">
+                {THEME_OPTIONS.map((option) => {
+                  const isActive = theme === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setTheme(option.value);
+                        closeMenu();
+                      }}
+                      className={[
+                        "rounded-full px-2.5 py-1 transition",
+                        isActive
+                          ? "bg-[var(--surface-2)] text-[var(--fg)] shadow-sm"
+                          : "text-[var(--muted)] hover:text-[var(--fg)]",
+                      ].join(" ")}
+                      aria-pressed={isActive}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </motion.nav>
         )}

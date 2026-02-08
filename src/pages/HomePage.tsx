@@ -45,14 +45,14 @@ export default function HomePage() {
     <div className="space-y-14 lg:space-y-16">
       <HeroPacket />
 
-      <section className="border-t border-slate-200 bg-white pt-12 pb-6">
+      <section className="border-t border-[var(--border)] bg-[var(--surface-0)] pt-12 pb-6">
         <SiteContainer className="px-2 sm:px-4 md:px-6">
           <div className="grid gap-6 md:grid-cols-3">
             {infoCards.map((card, idx) => (
               <MotionLink
                 key={card.title}
                 to={card.href}
-                className="rounded-xl border border-slate-200 bg-slate-50/80 p-5 text-left shadow-sm transition hover:border-sky-200 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5 text-left shadow-sm transition hover:border-[var(--ring)] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
                 custom={idx}
                 initial="hidden"
                 whileInView="visible"
@@ -62,10 +62,10 @@ export default function HomePage() {
                   shouldReduceMotion ? undefined : { y: -6, boxShadow: "0 16px 36px rgba(15,23,42,0.08)" }
                 }
               >
-                <h2 className="mb-2 text-sm font-semibold text-slate-900 font-body">
+                <h2 className="mb-2 text-sm font-semibold text-[var(--fg)] font-body">
                   {card.title}
                 </h2>
-                <p className="text-sm leading-relaxed text-slate-600 font-body">{card.body}</p>
+                <p className="text-sm leading-relaxed text-[var(--muted)] font-body">{card.body}</p>
               </MotionLink>
             ))}
           </div>

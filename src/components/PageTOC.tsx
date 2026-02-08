@@ -22,11 +22,11 @@ export function PageTOC({ items }: PageTOCProps) {
               "inline-flex items-center",
               "shrink-0 whitespace-nowrap select-none",
               "h-8 rounded-full",
-              "border border-slate-200 bg-slate-50",
-              "px-3 text-xs font-medium leading-none text-slate-700",
+              "border border-[var(--border)] bg-[var(--surface-1)]",
+              "px-3 text-xs font-medium leading-none text-[var(--fg)]",
               "shadow-sm transition",
-              "hover:border-sky-300 hover:bg-white",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+              "hover:border-[var(--ring)] hover:bg-[var(--surface-2)]",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]",
             ].join(" ")}
           >
             {item.label}
