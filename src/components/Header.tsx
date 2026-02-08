@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lang/brand";
 import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
+import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
 import { SiteContainer } from "./SiteContainer";
 
 const NAV_ITEMS = [
@@ -43,6 +44,9 @@ export function Header() {
     };
   }, []);
 
+  const releaseVersion = useFluxReleaseVersion(brandInfo.version ?? "0.0.0");
+  const displayBrandInfo = { ...brandInfo, version: releaseVersion };
+
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
       <SiteContainer className="flex items-center justify-between py-3">
@@ -50,7 +54,7 @@ export function Header() {
           {/* Brand comes from @flux-lang/brand; do not fork. */}
           <span className="hidden md:inline-flex">
             <FluxBrandHeader
-              info={brandInfo}
+              info={displayBrandInfo}
               variant="marketing"
               markPath="/flux-mark-favicon.svg"
               markRenderMode="color"
@@ -61,7 +65,7 @@ export function Header() {
           </span>
           <span className="inline-flex md:hidden">
             <FluxBrandHeader
-              info={brandInfo}
+              info={displayBrandInfo}
               variant="menu"
               markPath="/flux-mark-favicon.svg"
               markRenderMode="color"
