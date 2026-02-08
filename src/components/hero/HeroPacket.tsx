@@ -1,16 +1,15 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { CliInstallWidget } from "../CliInstallWidget";
-import { FluxBadge } from "../FluxBadge";
 import { HeroSection } from "../HeroSection";
 import { HeroMediaCard } from "./HeroMediaCard";
 
 export function HeroPacket() {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
     <HeroSection>
       <div className="flex w-full flex-col gap-12">
         <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 text-center">
-          <FluxBadge className="hero-brand-pill" />
-
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Live packet
@@ -27,31 +26,33 @@ export function HeroPacket() {
 
           <motion.div
             className="flex flex-wrap items-center justify-center gap-3"
-            initial={{ opacity: 0, y: 8 }}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
           >
             <motion.a
               href="/docs"
-              className="inline-flex items-center rounded-full flux-gradient-bg px-4 py-2 text-sm font-semibold text-white shadow-sm transition"
-              whileHover={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,205,254,0.35)" }}
-              whileTap={{ scale: 0.98 }}
+              className="inline-flex items-center rounded-full flux-gradient-bg px-4 py-2 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              whileHover={
+                shouldReduceMotion ? undefined : { scale: 1.02, boxShadow: "0 10px 30px rgba(0,205,254,0.35)" }
+              }
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
             >
               Get started
             </motion.a>
             <motion.a
               href="/docs"
-              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800"
-              whileHover={{ scale: 1.02, translateY: -1 }}
-              whileTap={{ scale: 0.98 }}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              whileHover={shouldReduceMotion ? undefined : { scale: 1.02, translateY: -1 }}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
             >
               Docs
             </motion.a>
             <motion.a
               href="https://github.com/cbassuarez/flux"
-              className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
-              whileHover={{ scale: 1.02, translateY: -1 }}
-              whileTap={{ scale: 0.98 }}
+              className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              whileHover={shouldReduceMotion ? undefined : { scale: 1.02, translateY: -1 }}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
             >
               GitHub
             </motion.a>

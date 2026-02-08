@@ -174,6 +174,7 @@ so the same inputs always yield the same outputs.`;
       subtitle="Deterministic, paged documents with live-evolving slots."
       eyebrow={<FluxBrandStrip subtitle="docs" />}
       headerSlot={<PageTOC items={tocItems} />}
+      contentClassName="max-w-none"
     >
       {/* Hero rail layout */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">

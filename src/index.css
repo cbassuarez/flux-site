@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --font-display: "Noto Serif Display", "Times New Roman", serif;
-  --font-body: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+  --font-display: "Noto Serif Display", ui-serif, Georgia, serif;
+  --font-body: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 html,
@@ -12,6 +12,11 @@ body,
 #root {
   min-height: 100%;
   background-color: #ffffff;
+}
+
+html,
+body {
+  font-family: var(--font-body);
 }
 
 body {
@@ -31,6 +36,13 @@ body {
   h6 {
     font-family: var(--font-display);
     font-weight: 400;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-family: inherit;
   }
 }
 
@@ -57,6 +69,12 @@ body {
   }
   100% {
     transform: translate3d(0, -8px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-flux-hero {
+    animation: none;
   }
 }
 

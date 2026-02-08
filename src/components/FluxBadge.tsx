@@ -14,7 +14,9 @@ export function FluxBadge({ className }: FluxBadgeProps) {
   const baseClasses =
     "inline-flex items-center gap-2 rounded-lg border border-slate-200 " +
     "bg-white/90 px-3 py-1 text-xs font-medium text-slate-900 " +
-    "shadow-sm transition hover:shadow-md hover:border-sky-200 hover:bg-white";
+    "shadow-sm transition hover:shadow-md hover:border-sky-200 hover:bg-white " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 " +
+    "focus-visible:ring-offset-2 focus-visible:ring-offset-white";
 
   const mergedClassName = className
     ? `${baseClasses} ${className}`
