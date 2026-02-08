@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { FluxMarkLogo } from "./FluxMarkLogo";
+import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lang/brand";
+import { FluxBrandHeader } from "@flux-lang/brand/web";
+import { getFluxVersionInfo } from "../lib/versionInfo";
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
@@ -12,26 +14,59 @@ const NAV_ITEMS = [
 ];
 
 export function Header() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+  const [brandInfo, setBrandInfo] = useState<FluxVersionInfo>(() => coerceVersionInfo({ version: "0.0.0" }));
   const location = useLocation();
 
   const closeMenu = () => setIsOpen(false);
   const toggleMenu = () => setIsOpen((prev) => !prev);
+  const openDocsFromVersion = () => {
+    closeMenu();
+    navigate("/docs");
+  };
 
   useEffect(() => {
     closeMenu();
   }, [location.pathname]);
 
+  useEffect(() => {
+    let active = true;
+    void getFluxVersionInfo().then((info) => {
+      if (!active) return;
+      setBrandInfo(info);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-3">
-          <FluxMarkLogo />
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight text-slate-900">Flux</span>
-            <span className="text-[11px] text-slate-500">procedurally evolving music scores and parts.</span>
-          </div>
+        <Link to="/" className="flex items-center text-slate-900">
+          {/* Brand comes from @flux-lang/brand; do not fork. */}
+          <span className="hidden md:inline-flex">
+            <FluxBrandHeader
+              info={brandInfo}
+              variant="marketing"
+              markPath="/flux-mark-favicon.svg"
+              showTagline
+              onVersionClick={openDocsFromVersion}
+              line2ClassName="text-[11px] text-slate-500"
+            />
+          </span>
+          <span className="inline-flex md:hidden">
+            <FluxBrandHeader
+              info={brandInfo}
+              variant="menu"
+              markPath="/flux-mark-favicon.svg"
+              showTagline={false}
+              title={FLUX_TAGLINE}
+              onVersionClick={openDocsFromVersion}
+            />
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
@@ -127,6 +162,9 @@ export function Header() {
             className="md:hidden"
           >
             <div className="border-t border-slate-200 bg-white/95 px-4 pb-4 pt-2 shadow-sm">
+              <div className="mb-2 rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-500">
+                {brandInfo.tagline}
+              </div>
               <ul className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                 {NAV_ITEMS.map((item) => (
                   <li key={item.path}>
