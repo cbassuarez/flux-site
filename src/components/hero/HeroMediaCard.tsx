@@ -22,7 +22,7 @@ export function HeroMediaCard() {
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
       <img
-        src="/hero-terminal.svg"
+        src="/hero-terminal.png"
         alt="Flux CLI preview"
         className="relative w-full rounded-2xl border border-white/10 bg-slate-950/70"
       />
