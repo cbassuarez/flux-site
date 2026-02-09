@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SiteContainer } from "../SiteContainer";
 import { buttonClasses } from "../ui/Button";
 
@@ -48,13 +49,14 @@ function isValidEmail(value: string) {
 export function ShareWorkCTA() {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <section className="border-t border-[var(--border)] bg-[var(--surface-0)] py-16">
       <SiteContainer>
         <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-6 py-10 shadow-sm md:px-10">
           <div className="grid gap-8 lg:grid-cols-[1.3fr_auto] lg:items-center">
-            <div className="space-y-3">
+            <div className="space-y-3 max-w-2xl">
               <h2 className="text-2xl font-semibold text-[var(--fg)] md:text-3xl">
                 Share a .flux document you’ve made.
               </h2>
@@ -69,7 +71,11 @@ export function ShareWorkCTA() {
                 onClick={() => setIsOpen(true)}
                 aria-haspopup="dialog"
                 aria-expanded={isOpen}
-                className={buttonClasses({ variant: "primary", size: "md" })}
+                className={buttonClasses({
+                  variant: "primary",
+                  size: "md",
+                  className: "flux-gradient-bg text-white shadow-sm",
+                })}
               >
                 Share a document
               </button>
@@ -85,12 +91,15 @@ export function ShareWorkCTA() {
           </div>
         </div>
       </SiteContainer>
-      {isOpen ? (
-        <ShareWorkModal
-          onClose={() => setIsOpen(false)}
-          triggerRef={triggerRef}
-        />
-      ) : null}
+      <AnimatePresence>
+        {isOpen ? (
+          <ShareWorkModal
+            onClose={() => setIsOpen(false)}
+            triggerRef={triggerRef}
+            shouldReduceMotion={shouldReduceMotion}
+          />
+        ) : null}
+      </AnimatePresence>
     </section>
   );
 }
@@ -98,9 +107,10 @@ export function ShareWorkCTA() {
 type ShareWorkModalProps = {
   onClose: () => void;
   triggerRef: RefObject<HTMLButtonElement>;
+  shouldReduceMotion: boolean;
 };
 
-function ShareWorkModal({ onClose, triggerRef }: ShareWorkModalProps) {
+function ShareWorkModal({ onClose, triggerRef, shouldReduceMotion }: ShareWorkModalProps) {
   const formspreeEndpoint = import.meta.env.VITE_FORMSPREE_SHAREDOC_ENDPOINT as string | undefined;
   const isFormEnabled = Boolean(formspreeEndpoint);
   const [formState, setFormState] = useState<FormState>(defaultState);
@@ -257,12 +267,15 @@ function ShareWorkModal({ onClose, triggerRef }: ShareWorkModalProps) {
     "mt-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-0)] px-3 py-2 text-sm text-[var(--fg)] shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-1)]";
 
   return createPortal(
-    <div
+    <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8"
       onMouseDown={handleOverlayMouseDown}
       role="presentation"
+      initial={shouldReduceMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0 }}
     >
-      <div
+      <motion.div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
@@ -270,6 +283,10 @@ function ShareWorkModal({ onClose, triggerRef }: ShareWorkModalProps) {
         aria-describedby={helperId}
         tabIndex={-1}
         className="w-full max-w-2xl rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-xl md:p-8"
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 10, scale: 0.98 }}
+        transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
       >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -512,7 +529,11 @@ function ShareWorkModal({ onClose, triggerRef }: ShareWorkModalProps) {
             <button
               type="submit"
               disabled={!isFormEnabled || status === "submitting"}
-              className={buttonClasses({ variant: "primary", size: "md" })}
+              className={buttonClasses({
+                variant: "primary",
+                size: "md",
+                className: "flux-gradient-bg text-white shadow-sm",
+              })}
             >
               {status === "submitting" ? "Submitting…" : "Submit"}
             </button>
@@ -525,8 +546,8 @@ function ShareWorkModal({ onClose, triggerRef }: ShareWorkModalProps) {
             </button>
           </div>
         </form>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>,
     document.body,
   );
 }
