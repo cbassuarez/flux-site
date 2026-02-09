@@ -21,6 +21,7 @@ const FOOTER_LINKS = [
     links: [
       { label: "Get Started", to: "/docs" },
       { label: "Docs", to: "/docs" },
+      { label: "Changelog", to: "/docs/changelog" },
     ],
   },
   {
