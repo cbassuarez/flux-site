@@ -57,8 +57,11 @@ export function ChangelogItem({ item, isSelected, onOpen, onViewDiff }: Props) {
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
-          <div className="text-xs text-[var(--muted)]" title={formatTooltip(item.mergedAt)}>
-            {formatDate(item.mergedAt)}
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
+            <span title={formatTooltip(item.mergedAt)}>{formatDate(item.mergedAt)}</span>
+            <span className="text-[10px] font-mono tracking-tight text-[var(--muted)]">
+              PR #{item.id}
+            </span>
           </div>
           <div className="text-sm font-semibold text-[var(--fg)]">{item.title}</div>
           {item.summary ? <div className="text-xs text-[var(--muted)]">{item.summary}</div> : null}
