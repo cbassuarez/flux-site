@@ -1,80 +1,82 @@
-import type { ChangelogChannel } from "./types";
+import type { ChangelogChip } from "./types";
 
-export type ParsedTitle = {
-  type: string;
-  scope: string | null;
-  subject: string;
-  breaking: boolean;
-};
+const TYPE_INFERENCE = [
+  { regex: /^(fix|fixed|hotfix)\b/i, value: "fix" },
+  { regex: /^(add|adds|introduce|introduces|support|supports|implement|implements)\b/i, value: "feat" },
+];
 
-const KNOWN_TYPES = new Set([
-  "feat",
-  "fix",
-  "chore",
-  "docs",
-  "refactor",
-  "perf",
-  "test",
-  "build",
-  "ci",
-  "style",
-  "revert",
-  "change",
-]);
+const SCOPE_TOKENS = ["viewer", "cli", "core", "docs", "site"];
 
 function normalizeType(type: string) {
-  const lowered = type.toLowerCase();
-  return KNOWN_TYPES.has(lowered) ? lowered : "change";
+  return type.trim().toLowerCase();
 }
 
-function normalizeSubject(subject: string) {
-  const trimmed = subject.trim().replace(/\.$/, "");
-  if (!trimmed) return trimmed;
-  return trimmed[0].toUpperCase() + trimmed.slice(1);
+function cleanTitle(rawTitle: string) {
+  return rawTitle.trim().replace(/\s*\(#\d+\)\s*$/, "");
 }
 
-export function parseTitle(rawTitle: string, labels: string[] = []): ParsedTitle {
-  const normalized = rawTitle.trim();
-  const match = normalized.match(/^([A-Za-z]+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/);
-  const fallbackMatch = normalized.match(/^([A-Za-z]+)(!)?:\s*(.+)$/);
-  const hasBreakingLabel = labels.map((label) => label.toLowerCase()).includes("breaking");
+function inferType(title: string) {
+  for (const option of TYPE_INFERENCE) {
+    if (option.regex.test(title)) return option.value;
+  }
+  return "chore";
+}
 
-  if (match) {
-    const [, rawType, rawScope, bang, subject] = match;
+function inferScope(title: string) {
+  const scopeMatch = title.match(/\(([^)]+)\)/);
+  if (scopeMatch?.[1]) return scopeMatch[1].trim().toLowerCase();
+  const lower = title.toLowerCase();
+  return SCOPE_TOKENS.find((token) => new RegExp(`\\b${token}\\b`, "i").test(lower)) ?? null;
+}
+
+export function normalizeTitle(rawTitle: string) {
+  const trimmed = cleanTitle(rawTitle);
+  const conventionalMatch = trimmed.match(/^([A-Za-z]+)(?:\(([^)]+)\))?:\s*(.+)$/);
+  if (conventionalMatch) {
+    const [, rawType, rawScope, subject] = conventionalMatch;
+    const typeChip = normalizeType(rawType);
+    const scopeChip = rawScope ? rawScope.trim().toLowerCase() : undefined;
     return {
-      type: normalizeType(rawType),
-      scope: rawScope ? rawScope.toLowerCase() : null,
-      subject: normalizeSubject(subject),
-      breaking: Boolean(bang) || hasBreakingLabel,
+      title: subject.trim(),
+      typeChip,
+      scopeChip,
     };
   }
 
+  const fallbackMatch = trimmed.match(/^([A-Za-z]+):\s*(.+)$/);
   if (fallbackMatch) {
-    const [, rawType, bang, subject] = fallbackMatch;
+    const [, rawType, subject] = fallbackMatch;
     return {
-      type: normalizeType(rawType),
-      scope: null,
-      subject: normalizeSubject(subject),
-      breaking: Boolean(bang) || hasBreakingLabel,
+      title: subject.trim(),
+      typeChip: normalizeType(rawType),
+      scopeChip: undefined,
     };
   }
 
+  const inferredType = inferType(trimmed);
+  const inferredScope = inferScope(trimmed) ?? undefined;
   return {
-    type: "change",
-    scope: null,
-    subject: normalizeSubject(normalized),
-    breaking: hasBreakingLabel,
+    title: trimmed,
+    typeChip: inferredType,
+    scopeChip: inferredScope,
   };
 }
 
-export function formatTitle(parsed: ParsedTitle) {
-  return parsed.subject || "Untitled";
-}
-
-export function buildChips(parsed: ParsedTitle, channel: ChangelogChannel) {
-  const chips = [parsed.type];
-  if (parsed.scope) chips.push(parsed.scope);
-  if (channel) chips.push(channel);
-  const deduped = Array.from(new Set(chips.filter(Boolean)));
-  return deduped.slice(0, 3);
+export function deriveChips({
+  title,
+  typeChip,
+  scopeChip,
+  channel,
+}: {
+  title: string;
+  typeChip?: string;
+  scopeChip?: string;
+  channel: string;
+}): ChangelogChip[] {
+  const type = typeChip ?? inferType(title);
+  const scope = scopeChip ?? inferScope(title) ?? undefined;
+  const chips: ChangelogChip[] = [{ kind: "type", value: type }];
+  if (scope) chips.push({ kind: "scope", value: scope });
+  chips.push({ kind: "channel", value: channel });
+  return chips;
 }
