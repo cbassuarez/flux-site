@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { FLUX_TAGLINE, coerceVersionInfo, type FluxVersionInfo } from "@flux-lang/brand";
+import { coerceVersionInfo, type FluxVersionInfo } from "@flux-lang/brand";
 import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
 import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
@@ -14,6 +14,8 @@ const NAV_ITEMS = [
   { path: "/tooling", label: "Tooling" },
   { path: "/roadmap", label: "Roadmap" },
 ];
+const SITE_TITLE = "Flux";
+const SITE_TAGLINE = "Language + toolchain for scores";
 
 export function Header() {
   const navigate = useNavigate();
@@ -45,7 +47,7 @@ export function Header() {
   }, []);
 
   const releaseVersion = useFluxReleaseVersion(brandInfo.version ?? "0.0.0");
-  const displayBrandInfo = { ...brandInfo, version: releaseVersion };
+  const displayBrandInfo = { ...brandInfo, version: releaseVersion, tagline: SITE_TAGLINE };
 
   return (
     <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--surface-0)] backdrop-blur">
@@ -70,7 +72,7 @@ export function Header() {
               markPath="/flux-mark-favicon.svg"
               markRenderMode="color"
               showTagline={false}
-              title={FLUX_TAGLINE}
+              title={SITE_TITLE}
               onVersionClick={openDocsFromVersion}
             />
           </span>
@@ -172,7 +174,7 @@ export function Header() {
           >
             <div className="border-t border-[var(--border)] bg-[var(--surface-0)] px-4 pb-4 pt-2 shadow-sm">
               <div className="mb-2 rounded-lg bg-[var(--surface-1)] px-2 py-1 text-[11px] text-[var(--muted)]">
-                {brandInfo.tagline}
+                {SITE_TAGLINE}
               </div>
               <ul className="flex flex-col gap-1 text-sm font-medium text-[var(--fg)]">
                 {NAV_ITEMS.map((item) => (

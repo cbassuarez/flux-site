@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { ChangelogControls } from "../../components/changelog/ChangelogControls";
 import { ChangelogItem } from "../../components/changelog/ChangelogItem";
 import { fetchChangelog } from "../../lib/changelogApi";
+import { isPrerender } from "../../lib/prerender";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
 
 const LIMIT = 20;
 const skeletonItems = Array.from({ length: 4 });
 
 export default function ChangelogPage() {
+  const prerenderMode = isPrerender();
   const [items, setItems] = useState<ApiChangelogItem[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +20,12 @@ export default function ChangelogPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    if (prerenderMode) {
+      setItems([]);
+      setNextCursor(null);
+      setStatus("ready");
+      return undefined;
+    }
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -37,7 +45,7 @@ export default function ChangelogPage() {
       });
 
     return () => controller.abort();
-  }, [refreshNonce, windowDays]);
+  }, [prerenderMode, refreshNonce, windowDays]);
 
   const loadMore = () => {
     if (!nextCursor || isLoadingMore) return;

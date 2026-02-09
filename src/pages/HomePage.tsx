@@ -4,6 +4,8 @@ import { HeroPacket } from "../components/hero/HeroPacket";
 import { SiteContainer } from "../components/SiteContainer";
 import { WhatIsFluxSection } from "../components/WhatIsFluxSection";
 import { HomeChangelog } from "../components/changelog/HomeChangelog";
+import { Seo } from "../components/Seo";
+import { SITE_DESCRIPTION } from "../lib/seo";
 
 export default function HomePage() {
   const shouldReduceMotion = useReducedMotion();
@@ -45,6 +47,11 @@ export default function HomePage() {
 
   return (
     <div className="space-y-14 lg:space-y-16">
+      <Seo
+        title="Flux — A document language for musical scores"
+        description={SITE_DESCRIPTION}
+        canonicalPath="/"
+      />
       <HeroPacket />
       <WhatIsFluxSection />
 
