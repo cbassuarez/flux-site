@@ -13,7 +13,7 @@ export function FluxBrandStrip({ subtitle, className, prefix }: FluxBrandStripPr
       {prefix}
       <FluxMark variant="frame" animate className="h-10 w-10" />
       <div className="flux-brand-strip-text">
-        <span className="flux-brand-strip-title">flux</span>
+        <span className="flux-brand-strip-title">Flux</span>
         {subtitle && <span className="flux-brand-strip-subtitle">{subtitle}</span>}
       </div>
     </div>

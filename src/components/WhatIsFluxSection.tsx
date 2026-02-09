@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { seededIndex } from "./hero/determinism";
 import { SiteContainer } from "./SiteContainer";
+import { isPrerender } from "../lib/prerender";
 
 const ALT_HEADLINES = [
   "Documents that can transform.",
@@ -58,28 +59,29 @@ function headlineVariants(type: TransitionType) {
 }
 
 export function WhatIsFluxSection() {
+  const prerenderMode = isPrerender();
   const shouldReduceMotion = useReducedMotion();
   const [docstep, setDocstep] = useState(0);
   const [docstepMs, setDocstepMs] = useState(1000);
   const [transitionMs, setTransitionMs] = useState(220);
   const [transitionType, setTransitionType] = useState<TransitionType>("fade");
-  const [running, setRunning] = useState(true);
+  const [running, setRunning] = useState(!prerenderMode);
   const seed = 42;
 
   useEffect(() => {
-    if (shouldReduceMotion) {
+    if (shouldReduceMotion || prerenderMode) {
       setRunning(false);
       setTransitionType("none");
     }
-  }, [shouldReduceMotion]);
+  }, [prerenderMode, shouldReduceMotion]);
 
   useEffect(() => {
-    if (!running || docstepMs <= 0) return undefined;
+    if (prerenderMode || !running || docstepMs <= 0) return undefined;
     const interval = window.setInterval(() => {
       setDocstep((value) => value + 1);
     }, docstepMs);
     return () => window.clearInterval(interval);
-  }, [running, docstepMs]);
+  }, [prerenderMode, running, docstepMs]);
 
   const headline = useMemo(() => {
     const index = seededIndex(seed, docstep, ALT_HEADLINES.length, 11);

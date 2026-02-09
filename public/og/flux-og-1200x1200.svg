@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <rect width="1200" height="1200" fill="#0b0f17" />
+  <rect x="80" y="80" width="1040" height="1040" rx="64" fill="#0f172a" stroke="#1e293b" stroke-width="4" />
+  <text x="140" y="520" fill="#f8fafc" font-family="Arial, Helvetica, sans-serif" font-size="120" font-weight="700">
+    Flux
+  </text>
+  <text x="140" y="610" fill="#94a3b8" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="500">
+    A document language and toolchain for engraving, transforming,
+  </text>
+  <text x="140" y="670" fill="#94a3b8" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="500">
+    and rendering musical scores.
+  </text>
+  <rect x="140" y="740" width="300" height="10" rx="5" fill="#22d3ee" />
+</svg>

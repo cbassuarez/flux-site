@@ -4,6 +4,7 @@ import fluxMarkFull from "../../assets/branding/flux-mark-full.svg";
 import fluxFrame01 from "../../assets/branding/flux-mark-frame-01.svg";
 import fluxFrame02 from "../../assets/branding/flux-mark-frame-02.svg";
 import fluxFrame03 from "../../assets/branding/flux-mark-frame-03.svg";
+import { isPrerender } from "../../lib/prerender";
 
 type FluxMarkVariant = "full" | "frame" | "pill";
 
@@ -19,6 +20,7 @@ const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(" ");
 
 export function FluxMark({ variant = "full", animate, className }: FluxMarkProps) {
+  const prerenderMode = isPrerender();
   const resolvedAnimate = useMemo(() => {
     if (typeof animate === "boolean") return animate;
     return variant === "frame";
@@ -27,12 +29,12 @@ export function FluxMark({ variant = "full", animate, className }: FluxMarkProps
   const [frameIndex, setFrameIndex] = useState(0);
 
   useEffect(() => {
-    if (variant !== "frame" || !resolvedAnimate) return undefined;
+    if (variant !== "frame" || !resolvedAnimate || prerenderMode) return undefined;
     const interval = setInterval(() => {
       setFrameIndex((prev) => (prev + 1) % frameSources.length);
     }, 1300);
     return () => clearInterval(interval);
-  }, [resolvedAnimate, variant]);
+  }, [prerenderMode, resolvedAnimate, variant]);
 
   if (variant === "pill") {
     return (
@@ -54,7 +56,7 @@ export function FluxMark({ variant = "full", animate, className }: FluxMarkProps
     );
   }
 
-  if (!resolvedAnimate) {
+  if (!resolvedAnimate || prerenderMode) {
     return (
       <img
         src={frameSources[0]}
