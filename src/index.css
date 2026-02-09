@@ -94,7 +94,7 @@ body::-webkit-scrollbar {
   h5,
   h6 {
     font-family: var(--font-display);
-    font-weight: 400;
+    font-weight: 500;
   }
 
   button,
