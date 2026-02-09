@@ -31,23 +31,50 @@ const isNumber = (value: unknown): value is number => typeof value === "number" 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
 
+const isChipArray = (value: unknown): value is Array<{ value: string }> =>
+  Array.isArray(value) &&
+  value.every((entry) => isObject(entry) && typeof (entry as { value?: unknown }).value === "string");
+
 const isChannel = (value: unknown): value is "stable" | "canary" => value === "stable" || value === "canary";
 
-const isChangelogItem = (value: unknown): value is ChangelogItem => {
-  if (!isObject(value)) return false;
-  return (
-    isNumber(value.id) &&
-    isString(value.title) &&
-    isString(value.mergedAt) &&
-    isString(value.url) &&
-    isString(value.diffUrl) &&
-    isString(value.author) &&
-    isStringArray(value.labels) &&
-    isChannel(value.channel) &&
-    (value.summary === undefined || value.summary === null || isString(value.summary)) &&
-    (value.area === undefined || value.area === null || isString(value.area)) &&
-    (value.breaking === undefined || typeof value.breaking === "boolean")
-  );
+const normalizeLabels = (value: unknown): string[] | null => {
+  if (isStringArray(value)) return value;
+  if (isChipArray(value)) return value.map((chip) => chip.value);
+  return null;
+};
+
+const normalizeChangelogItem = (value: unknown): ChangelogItem | null => {
+  if (!isObject(value)) return null;
+  const labels = normalizeLabels(value.labels ?? value.chips);
+  if (!labels) return null;
+  if (
+    !isNumber(value.id) ||
+    !isString(value.title) ||
+    !isString(value.mergedAt) ||
+    !isString(value.url) ||
+    !isString(value.diffUrl) ||
+    !isString(value.author) ||
+    !isChannel(value.channel)
+  ) {
+    return null;
+  }
+  if (value.summary !== undefined && value.summary !== null && !isString(value.summary)) return null;
+  if (value.area !== undefined && value.area !== null && !isString(value.area)) return null;
+  if (value.breaking !== undefined && typeof value.breaking !== "boolean") return null;
+
+  return {
+    id: value.id,
+    title: value.title,
+    summary: value.summary ?? undefined,
+    mergedAt: value.mergedAt,
+    url: value.url,
+    diffUrl: value.diffUrl,
+    author: value.author,
+    labels,
+    area: value.area ?? undefined,
+    channel: value.channel,
+    breaking: value.breaking ?? undefined,
+  };
 };
 
 const parseChangelogResponse = (payload: unknown): ChangelogResponse => {
@@ -63,19 +90,12 @@ const parseChangelogResponse = (payload: unknown): ChangelogResponse => {
   if (!Array.isArray(payload.items)) {
     throw new Error("Invalid changelog response");
   }
-  const items = payload.items.filter(isChangelogItem);
-  if (items.length !== payload.items.length) {
-    throw new Error("Invalid changelog response");
-  }
+  const items = payload.items.map((item) => normalizeChangelogItem(item));
+  if (items.some((item) => !item)) throw new Error("Invalid changelog response");
   const response: ChangelogResponse = {
     generatedAt: payload.generatedAt,
     source: { repo: payload.source.repo, branch: payload.source.branch },
-    items: items.map((item) => ({
-      ...item,
-      summary: item.summary ?? undefined,
-      area: item.area ?? undefined,
-      breaking: item.breaking ?? undefined,
-    })),
+    items: items as ChangelogItem[],
   };
   if (isString(payload.nextCursor)) {
     response.nextCursor = payload.nextCursor;
@@ -89,6 +109,12 @@ const buildUrl = (base: string, params: { window?: string; limit?: number; curso
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.cursor) url.searchParams.set("cursor", params.cursor);
   return url.toString();
+};
+
+const sanitizeErrorDetail = (value: string) => {
+  const stripped = value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!stripped) return "";
+  return stripped.length > 240 ? `${stripped.slice(0, 240)}…` : stripped;
 };
 
 export async function fetchChangelog(
@@ -119,10 +145,21 @@ export async function fetchChangelog(
     if (!response.ok) {
       const text = await response.text();
       const contentType = response.headers.get("content-type") ?? "";
-      const isHtml =
-        contentType.toLowerCase().includes("text/html") || /<!doctype|<html/i.test(text);
-      const detail = !isHtml && text ? ` ${text}` : "";
-      const message = detail ? `Failed to load changelog.${detail}`.trim() : "Failed to load changelog.";
+      let detail = "";
+      if (contentType.toLowerCase().includes("application/json")) {
+        try {
+          const payload = JSON.parse(text) as { error?: string };
+          if (payload?.error) detail = payload.error;
+        } catch {
+          detail = "";
+        }
+      }
+      if (!detail && text) {
+        detail = sanitizeErrorDetail(text);
+      }
+      const message = detail
+        ? `Failed to load changelog. ${detail}`.trim()
+        : "Failed to load changelog.";
       throw new Error(message);
     }
 

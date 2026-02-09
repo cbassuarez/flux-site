@@ -4,11 +4,11 @@ import { useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useChangelogQuery } from "../../changelog/useChangelogQuery";
 import { useDocstep } from "../../changelog/useDocstep";
-import type { ChangelogItem } from "../../changelog/types";
+import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
 import { SiteContainer } from "../SiteContainer";
 import { ChangelogControls } from "./ChangelogControls";
 
-const FALLBACK_ITEMS: ChangelogItem[] = [];
+const FALLBACK_ITEMS: ApiChangelogItem[] = [];
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -28,13 +28,14 @@ const formatTooltip = (value: string) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
-function getDisplayChips(item: ChangelogItem) {
-  const typeChip = item.chips.find((chip) => chip.kind === "type");
-  const scopeChip = item.chips.find((chip) => chip.kind === "scope");
-  const channelChip = item.chips.find((chip) => chip.kind === "channel");
-  const chips = [typeChip, scopeChip].filter(Boolean).slice(0, 2);
-  if (channelChip) chips.push(channelChip);
-  return chips;
+function getDisplayChips(item: ApiChangelogItem) {
+  const chips = [
+    ...item.labels,
+    ...(item.area ? [item.area] : []),
+    item.channel,
+    ...(item.breaking ? ["breaking"] : []),
+  ].filter(Boolean);
+  return chips.slice(0, 3);
 }
 
 export function ChangelogSection() {
@@ -43,7 +44,6 @@ export function ChangelogSection() {
   const [cursorMode, setCursorMode] = useState<"docstep" | "manual">("docstep");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { data, status, error, refresh } = useChangelogQuery({
-    base: "main",
     windowDays,
     first: 30,
   });
@@ -90,7 +90,7 @@ export function ChangelogSection() {
     }
   };
 
-  const handleRowClick = (item: ChangelogItem) => {
+  const handleRowClick = (item: ApiChangelogItem) => {
     window.open(item.url, "_blank", "noopener,noreferrer");
   };
 
@@ -213,10 +213,10 @@ export function ChangelogSection() {
                             <div className="flex flex-wrap gap-1">
                               {chips.map((chip) => (
                                 <span
-                                  key={`${chip?.kind}-${chip?.value}`}
+                                  key={`${item.id}-${chip}`}
                                   className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted)]"
                                 >
-                                  {chip?.value}
+                                  {chip}
                                 </span>
                               ))}
                             </div>
