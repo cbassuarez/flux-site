@@ -4,6 +4,8 @@ import { HeroPacket } from "../components/hero/HeroPacket";
 import { SiteContainer } from "../components/SiteContainer";
 import { WhatIsFluxSection } from "../components/WhatIsFluxSection";
 import { HomeChangelog } from "../components/changelog/HomeChangelog";
+import { ConceptsSection } from "../components/home/ConceptsSection";
+import { ShareWorkCTA } from "../components/home/ShareWorkCTA";
 import { Seo } from "../components/Seo";
 import { SITE_DESCRIPTION } from "../lib/seo";
 
@@ -83,6 +85,8 @@ export default function HomePage() {
       </section>
 
       <HomeChangelog />
+      <ConceptsSection />
+      <ShareWorkCTA />
     </div>
   );
 }
