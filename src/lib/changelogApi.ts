@@ -97,7 +97,7 @@ export async function fetchChangelog(
 ): Promise<ChangelogResponse> {
   const baseUrl = import.meta.env.VITE_CHANGELOG_API as string | undefined;
   if (!baseUrl) {
-    throw new Error("Changelog service is not configured.");
+    throw new Error("Changelog service not configured.");
   }
 
   const controller = new AbortController();
@@ -118,8 +118,12 @@ export async function fetchChangelog(
 
     if (!response.ok) {
       const text = await response.text();
-      const detail = text ? ` ${text}` : "";
-      throw new Error(`Failed to load changelog.${detail}`.trim());
+      const contentType = response.headers.get("content-type") ?? "";
+      const isHtml =
+        contentType.toLowerCase().includes("text/html") || /<!doctype|<html/i.test(text);
+      const detail = !isHtml && text ? ` ${text}` : "";
+      const message = detail ? `Failed to load changelog.${detail}`.trim() : "Failed to load changelog.";
+      throw new Error(message);
     }
 
     const payload = (await response.json()) as unknown;
