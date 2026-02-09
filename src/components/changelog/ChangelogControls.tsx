@@ -1,23 +1,26 @@
 import type { ReactNode } from "react";
-import type { ChangelogChannel } from "../../changelog/types";
 
-const windowOptions = [7, 30, 90] as const;
+const windowOptions = [7, 30, 90, 365] as const;
 
 type ChangelogControlsProps = {
   windowDays: number;
   onWindowDaysChange: (days: number) => void;
-  channel: ChangelogChannel;
-  onChannelChange: (channel: ChangelogChannel) => void;
-  availableChannels: ChangelogChannel[];
-  cursorMode?: "docstep" | "free";
-  onCursorModeChange?: (mode: "docstep" | "free") => void;
+  baseLabel: string;
+  cursorMode?: "docstep" | "manual";
+  onCursorModeChange?: (mode: "docstep" | "manual") => void;
+  onRefresh?: () => void;
 };
 
-function Chip({ children }: { children: ReactNode }) {
+function ChipButton({ children, onClick, title }: { children: ReactNode; onClick?: () => void; title?: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1 text-[11px] font-semibold text-[var(--muted)]">
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1 text-[11px] font-semibold text-[var(--muted)] transition hover:text-[var(--fg)]"
+    >
       {children}
-    </span>
+    </button>
   );
 }
 
@@ -49,19 +52,36 @@ function ToggleButton({
 export function ChangelogControls({
   windowDays,
   onWindowDaysChange,
-  channel,
-  onChannelChange,
-  availableChannels,
+  baseLabel,
   cursorMode,
   onCursorModeChange,
+  onRefresh,
 }: ChangelogControlsProps) {
-  const channels = availableChannels.length ? availableChannels : ["stable"];
+  const copyChip = (value: string) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    void navigator.clipboard.writeText(value);
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <Chip>source: github(prs@main)</Chip>
-        <Chip>filter: label("changelog")</Chip>
+        <ChipButton
+          onClick={() => copyChip(`source: github(prs@${baseLabel})`)}
+          title="Copy source filter"
+        >
+          {`source: github(prs@${baseLabel})`}
+        </ChipButton>
+        <ChipButton
+          onClick={() => copyChip('filter: label("changelog")')}
+          title="Copy label filter"
+        >
+          filter: label("changelog")
+        </ChipButton>
+        {onRefresh ? (
+          <ChipButton onClick={onRefresh} title="Refresh changelog">
+            refresh
+          </ChipButton>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -77,23 +97,10 @@ export function ChangelogControls({
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">channel</span>
-        {channels.map((option) => (
-          <ToggleButton
-            key={option}
-            active={channel === option}
-            onClick={() => onChannelChange(option)}
-          >
-            {option}
-          </ToggleButton>
-        ))}
-      </div>
-
       {cursorMode && onCursorModeChange ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">cursor</span>
-          {(["docstep", "free"] as const).map((option) => (
+          {(["docstep", "manual"] as const).map((option) => (
             <ToggleButton
               key={option}
               active={cursorMode === option}

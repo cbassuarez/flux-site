@@ -1,39 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { buildChips, formatTitle, parseTitle } from "./normalize";
+import { deriveChips, normalizeTitle } from "./normalize";
 
-describe("parseTitle", () => {
-  it("parses conventional titles with scope and breaking", () => {
-    const parsed = parseTitle("feat(viewer)!: add docstep mode.", []);
-    expect(parsed.type).toBe("feat");
-    expect(parsed.scope).toBe("viewer");
-    expect(parsed.breaking).toBe(true);
-    expect(formatTitle(parsed)).toBe("Add docstep mode");
+describe("normalizeTitle", () => {
+  it("parses conventional titles with scope", () => {
+    const parsed = normalizeTitle("feat(viewer): add docstep mode. (#123)");
+    expect(parsed.title).toBe("add docstep mode.");
+    expect(parsed.typeChip).toBe("feat");
+    expect(parsed.scopeChip).toBe("viewer");
   });
 
-  it("normalizes uppercase types and fallback formats", () => {
-    const parsed = parseTitle("Fix: correct the renderer", []);
-    expect(parsed.type).toBe("fix");
-    expect(parsed.scope).toBe(null);
-    expect(parsed.breaking).toBe(false);
-    expect(formatTitle(parsed)).toBe("Correct the renderer");
+  it("normalizes uppercase prefixes", () => {
+    const parsed = normalizeTitle("Fix: correct the renderer");
+    expect(parsed.typeChip).toBe("fix");
+    expect(parsed.title).toBe("correct the renderer");
   });
 
-  it("falls back to change for unknown types", () => {
-    const parsed = parseTitle("polish(ui): tighten padding", []);
-    expect(parsed.type).toBe("change");
-    expect(parsed.scope).toBe("ui");
-  });
-
-  it("marks breaking when breaking label is present", () => {
-    const parsed = parseTitle("refactor: remove legacy path", ["breaking"]);
-    expect(parsed.breaking).toBe(true);
+  it("infers type when missing", () => {
+    const parsed = normalizeTitle("Add new viewer layout");
+    expect(parsed.typeChip).toBe("feat");
   });
 });
 
-describe("buildChips", () => {
-  it("dedupes and caps chips", () => {
-    const parsed = parseTitle("feat(stable): update flags", []);
-    const chips = buildChips(parsed, "stable");
-    expect(chips).toEqual(["feat", "stable"]);
+describe("deriveChips", () => {
+  it("builds type, scope, and channel chips", () => {
+    const normalized = normalizeTitle("feat(cli): update flags");
+    const chips = deriveChips({
+      title: normalized.title,
+      typeChip: normalized.typeChip,
+      scopeChip: normalized.scopeChip,
+      channel: "stable",
+    });
+    expect(chips).toEqual([
+      { kind: "type", value: "feat" },
+      { kind: "scope", value: "cli" },
+      { kind: "channel", value: "stable" },
+    ]);
   });
 });

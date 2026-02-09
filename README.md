@@ -68,6 +68,19 @@ npm install
 npm run dev
 ```
 
+## Changelog API
+
+The site exposes a first-party `GET /api/changelog` endpoint that proxies GitHub PRs labeled
+`changelog`. For higher rate limits, set a token in your local environment:
+
+```bash
+export GITHUB_TOKEN=ghp_yourtoken
+# or GH_TOKEN=ghp_yourtoken
+```
+
+When running `npm run dev`, Vite serves the API endpoint locally using the same handler logic
+that production serverless platforms can wire to `/api/changelog`.
+
 ## Editor (served at /edit)
 
 ```bash
