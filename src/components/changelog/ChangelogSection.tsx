@@ -54,6 +54,7 @@ export function ChangelogSection() {
     enabled: cursorMode === "docstep",
     length: items.length,
     reduceMotion: Boolean(shouldReduceMotion),
+    mode: cursorMode === "docstep" ? "random" : "sequential",
   });
 
   useEffect(() => {
