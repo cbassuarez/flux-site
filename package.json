@@ -7,7 +7,7 @@
     "dev": "vite",
     "sync:flux-version": "node ./scripts/sync-flux-version.mjs",
     "prebuild": "npm run sync:flux-version",
-    "build": "vite build && node scripts/prerender.mjs",
+    "build": "vite build && node scripts/prerender.mjs && node scripts/check-dist-no-private-net.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "postbuild": "node scripts/copy-404.mjs && node scripts/copy-edit.mjs",
