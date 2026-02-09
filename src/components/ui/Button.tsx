@@ -1,5 +1,5 @@
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes } from "react";
-import { forwardRef } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, CSSProperties, HTMLAttributes } from "react";
+import { forwardRef, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link, type LinkProps } from "react-router-dom";
 
@@ -52,15 +52,14 @@ export function buttonClasses({
 
   const variantClasses: Record<ReturnType<typeof normalizeVariant>, string> = {
     glass: [
-      "border-[color:color-mix(in_srgb,var(--accent)_35%,var(--border))]",
-      "bg-[color:color-mix(in_srgb,var(--accent)_14%,var(--surface-1))]",
-      "text-[var(--fg)] shadow-[0_12px_30px_rgba(15,23,42,0.22)]",
+      "border-[color:color-mix(in_srgb,var(--flux-accent)_45%,var(--border))]",
+      "flux-gradient-bg text-white",
+      "shadow-[0_12px_30px_rgba(0,205,254,0.28)]",
       "backdrop-blur-sm",
-      "hover:border-[color:color-mix(in_srgb,var(--accent)_55%,var(--border))]",
-      "hover:bg-[color:color-mix(in_srgb,var(--accent)_18%,var(--surface-1))]",
+      "hover:brightness-110",
     ].join(" "),
     solid:
-      "border-[var(--border)] bg-[var(--surface-1)] text-[var(--fg)] shadow-sm hover:border-[color:color-mix(in_srgb,var(--accent)_45%,var(--border))] hover:bg-[var(--surface-2)]",
+      "border-[var(--border)] bg-[var(--surface-1)] text-[var(--fg)] shadow-sm hover:border-[color:color-mix(in_srgb,var(--button-hover-tint)_45%,var(--border))] hover:bg-[color:color-mix(in_srgb,var(--button-hover-tint)_18%,var(--surface-1))]",
     ghost:
       "border-transparent bg-transparent text-[var(--muted)] hover:bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--surface-1))] hover:text-[var(--fg)]",
     badge:
@@ -130,6 +129,27 @@ const useButtonMotion = () => {
   };
 };
 
+const pickHoverTint = () => (Math.random() < 0.5 ? "var(--flux-accent)" : "var(--flux-accent-green)");
+
+const useSolidHoverStyle = (variant: ButtonVariant) => {
+  const isSolid = normalizeVariant(variant) === "solid";
+  const [hoverTint, setHoverTint] = useState<string>("var(--flux-accent)");
+
+  return useMemo(() => {
+    if (!isSolid) {
+      return {
+        style: undefined,
+        onMouseEnter: undefined,
+      } as const;
+    }
+
+    return {
+      style: { "--button-hover-tint": hoverTint } as CSSProperties,
+      onMouseEnter: () => setHoverTint(pickHoverTint()),
+    } as const;
+  }, [hoverTint, isSolid]);
+};
+
 function normalizeVariant(variant: ButtonVariant = "glass") {
   if (variant === "primary") return "glass";
   if (variant === "secondary") return "solid";
@@ -144,6 +164,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const motionProps = useButtonMotion();
   const isGlass = normalizeVariant(variant) === "glass";
+  const { style, onMouseEnter } = useSolidHoverStyle(variant);
+  const mergedStyle = { ...style, ...props.style } as CSSProperties;
 
   return (
     <motion.button
@@ -151,6 +173,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={props.type ?? "button"}
       className={buttonClasses({ variant, size, iconOnly, className })}
       {...motionProps}
+      onMouseEnter={(event) => {
+        onMouseEnter?.();
+        props.onMouseEnter?.(event);
+      }}
+      style={mergedStyle}
       {...props}
     >
       {children}
@@ -167,11 +194,18 @@ export function ButtonLink({ variant = "glass", size = "md", iconOnly, className
   const motionProps = useButtonMotion();
   const isGlass = normalizeVariant(variant) === "glass";
   const MotionLink = motion(Link);
+  const { style, onMouseEnter } = useSolidHoverStyle(variant);
+  const mergedStyle = { ...style, ...props.style } as CSSProperties;
 
   return (
     <MotionLink
       className={buttonClasses({ variant, size, iconOnly, className })}
       {...motionProps}
+      onMouseEnter={(event) => {
+        onMouseEnter?.();
+        props.onMouseEnter?.(event);
+      }}
+      style={mergedStyle}
       {...props}
     >
       {props.children}
@@ -194,11 +228,18 @@ export function ButtonAnchor({
   const motionProps = useButtonMotion();
   const isGlass = normalizeVariant(variant) === "glass";
   const MotionAnchor = motion.a;
+  const { style, onMouseEnter } = useSolidHoverStyle(variant);
+  const mergedStyle = { ...style, ...props.style } as CSSProperties;
 
   return (
     <MotionAnchor
       className={buttonClasses({ variant, size, iconOnly, className })}
       {...motionProps}
+      onMouseEnter={(event) => {
+        onMouseEnter?.();
+        props.onMouseEnter?.(event);
+      }}
+      style={mergedStyle}
       {...props}
     >
       {props.children}
