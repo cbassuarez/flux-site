@@ -68,6 +68,14 @@ async function writeHtml(route, html) {
   await writeFile(outPath, html, "utf8");
 }
 
+function normalizePrerenderedHtml(html, previewOriginUrl) {
+  const normalizedOrigin = previewOriginUrl.replace(/\/$/, "");
+  const escapedOrigin = normalizedOrigin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const withTrailingSlash = new RegExp(`${escapedOrigin}/`, "g");
+  const withoutTrailingSlash = new RegExp(`${escapedOrigin}(?=$|[\"'\\s>?#])`, "g");
+  return html.replace(withTrailingSlash, "/").replace(withoutTrailingSlash, "/");
+}
+
 async function main() {
   const previewPort = await getAvailablePort();
   const previewUrl = `http://${PREVIEW_HOST}:${previewPort}`;
@@ -113,7 +121,8 @@ async function main() {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.waitForSelector('meta[property="og:title"]', { timeout: 10000, state: "attached" });
       const html = await page.content();
-      await writeHtml(route, html);
+      const normalizedHtml = normalizePrerenderedHtml(html, previewUrl);
+      await writeHtml(route, normalizedHtml);
     }
 
     await browser.close();
