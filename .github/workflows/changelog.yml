@@ -1,0 +1,59 @@
+name: Update changelog
+
+on:
+  repository_dispatch:
+    types: [flux-changelog-updated]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/generate-changelog.mjs
+
+      - name: Read changelog metadata
+        id: changelog
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const data=JSON.parse(fs.readFileSync('public/changelog.json','utf8')); console.log('count=' + data.items.length); console.log('generatedAt=' + data.generatedAt); console.log('branches=' + data.source.branches.join(', '));" >> "$GITHUB_OUTPUT"
+
+      - name: Run changelog tests
+        run: npm test -- --run src/changelog
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(docs): update changelog"
+          title: "chore(docs): update changelog"
+          branch: bot/changelog
+          body: |
+            Automated changelog update.
+
+            - Generated: ${{ steps.changelog.outputs.generatedAt }}
+            - Branches: ${{ steps.changelog.outputs.branches }}
+            - Items: ${{ steps.changelog.outputs.count }}
+          add-paths: |
+            public/changelog.json

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { DocsRenderer } from "./DocsRenderer";
 import { defaultDocSlug, docsSections, getDocsPage } from "./docsMap";
 import { SiteContainer } from "../../components/SiteContainer";
+import ChangelogPage from "./ChangelogPage";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 
@@ -27,10 +28,12 @@ export default function DocsShell() {
     }
   }, [location.pathname, navigate, slug]);
 
-  const page = getDocsPage(slug) ?? null;
-  const pageTitle = page?.title ?? "Page Not Found";
-  const pageDescription =
-    page?.description ?? "We couldn't find this doc. Pick a page from the navigation to keep going.";
+  const isChangelog = slug === "changelog";
+  const page = isChangelog ? null : getDocsPage(slug) ?? null;
+  const pageTitle = isChangelog ? "Changelog" : page?.title ?? "Page Not Found";
+  const pageDescription = isChangelog
+    ? "Merged PRs labeled changelog, compiled into a local feed."
+    : page?.description ?? "We couldn't find this doc. Pick a page from the navigation to keep going.";
 
   const filteredSections = useMemo(() => {
     if (!filter.trim()) return docsSections;
@@ -45,7 +48,9 @@ export default function DocsShell() {
       .filter((section) => section.pages.length > 0);
   }, [filter]);
 
-  const content = page?.content ?? `# Page Not Found\n\nThe requested doc doesn't exist. Head back to [Get Started](/docs/${defaultDocSlug}) or choose another page.`;
+  const content =
+    page?.content ??
+    `# Page Not Found\n\nThe requested doc doesn't exist. Head back to [Get Started](/docs/${defaultDocSlug}) or choose another page.`;
 
   return (
     <section className="bg-flux-hero py-8 text-slate-900">
@@ -145,7 +150,7 @@ export default function DocsShell() {
 
             <article className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
               <div className="space-y-6">
-                <DocsRenderer content={content} />
+                {isChangelog ? <ChangelogPage /> : <DocsRenderer content={content} />}
               </div>
             </article>
           </div>

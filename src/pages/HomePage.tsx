@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { HeroPacket } from "../components/hero/HeroPacket";
 import { SiteContainer } from "../components/SiteContainer";
 import { WhatIsFluxSection } from "../components/WhatIsFluxSection";
+import { ChangelogSection } from "../components/changelog/ChangelogSection";
 
 export default function HomePage() {
   const shouldReduceMotion = useReducedMotion();
@@ -73,6 +74,8 @@ export default function HomePage() {
           </div>
         </SiteContainer>
       </section>
+
+      <ChangelogSection />
     </div>
   );
 }
