@@ -6,9 +6,9 @@ import { useDocstep } from "../../changelog/useDocstep";
 import { fetchChangelog } from "../../lib/changelogApi";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
 import { SiteContainer } from "../SiteContainer";
+import { ChangelogControls } from "./ChangelogControls";
 import { ChangelogItem } from "./ChangelogItem";
 
-const WINDOW = "30d";
 const LIMIT = 7;
 
 const skeletonItems = Array.from({ length: 3 });
@@ -19,10 +19,13 @@ export function HomeChangelog() {
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [windowDays, setWindowDays] = useState(30);
+  const [cursorMode, setCursorMode] = useState<"docstep" | "manual">("docstep");
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const docstep = useDocstep({
-    enabled: true,
+    enabled: cursorMode === "docstep",
     length: items.length,
     reduceMotion: Boolean(shouldReduceMotion),
   });
@@ -33,9 +36,9 @@ export function HomeChangelog() {
   }, [items.length]);
 
   useEffect(() => {
-    if (!items.length) return;
+    if (!items.length || cursorMode !== "docstep") return;
     setSelectedIndex(docstep.step % items.length);
-  }, [docstep.step, items.length]);
+  }, [cursorMode, docstep.step, items.length]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -44,7 +47,7 @@ export function HomeChangelog() {
     setStatus("loading");
     setError(null);
 
-    fetchChangelog({ window: WINDOW, limit: LIMIT }, controller.signal)
+    fetchChangelog({ window: `${windowDays}d`, limit: LIMIT }, controller.signal)
       .then((response) => {
         setItems(response.items);
         setStatus("ready");
@@ -56,7 +59,7 @@ export function HomeChangelog() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [refreshNonce, windowDays]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (!items.length) return;
@@ -64,7 +67,9 @@ export function HomeChangelog() {
       event.preventDefault();
       setSelectedIndex((index) => {
         const next = (index + 1) % items.length;
-        docstep.setStep(next);
+        if (cursorMode === "docstep") {
+          docstep.setStep(next);
+        }
         return next;
       });
     }
@@ -72,7 +77,9 @@ export function HomeChangelog() {
       event.preventDefault();
       setSelectedIndex((index) => {
         const next = (index - 1 + items.length) % items.length;
-        docstep.setStep(next);
+        if (cursorMode === "docstep") {
+          docstep.setStep(next);
+        }
         return next;
       });
     }
@@ -105,12 +112,14 @@ export function HomeChangelog() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4 text-xs text-[var(--muted)]">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Query</div>
-              <div className="mt-2 font-mono text-[11px] text-[var(--fg)]">
-                changelog = github.prs(base="main").where(label="changelog").last(30d)
-              </div>
-            </div>
+            <ChangelogControls
+              windowDays={windowDays}
+              onWindowDaysChange={setWindowDays}
+              baseLabel="main"
+              cursorMode={cursorMode}
+              onCursorModeChange={setCursorMode}
+              onRefresh={() => setRefreshNonce((value) => value + 1)}
+            />
 
             <div>
               <Link

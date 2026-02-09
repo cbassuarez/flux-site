@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { ChangelogControls } from "../../components/changelog/ChangelogControls";
 import { ChangelogItem } from "../../components/changelog/ChangelogItem";
 import { fetchChangelog } from "../../lib/changelogApi";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
 
-const WINDOW = "365d";
 const LIMIT = 20;
 const skeletonItems = Array.from({ length: 4 });
 
@@ -13,6 +13,8 @@ export default function ChangelogPage() {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [windowDays, setWindowDays] = useState(365);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -22,7 +24,7 @@ export default function ChangelogPage() {
     setStatus("loading");
     setError(null);
 
-    fetchChangelog({ window: WINDOW, limit: LIMIT }, controller.signal)
+    fetchChangelog({ window: `${windowDays}d`, limit: LIMIT }, controller.signal)
       .then((response) => {
         setItems(response.items);
         setNextCursor(response.nextCursor ?? null);
@@ -35,12 +37,12 @@ export default function ChangelogPage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [refreshNonce, windowDays]);
 
   const loadMore = () => {
     if (!nextCursor || isLoadingMore) return;
     setIsLoadingMore(true);
-    fetchChangelog({ window: WINDOW, limit: LIMIT, cursor: nextCursor })
+    fetchChangelog({ window: `${windowDays}d`, limit: LIMIT, cursor: nextCursor })
       .then((response) => {
         setItems((current) => [...current, ...response.items]);
         setNextCursor(response.nextCursor ?? null);
@@ -62,11 +64,13 @@ export default function ChangelogPage() {
             streamed from the Flux changelog service.
           </p>
         </div>
-        <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-0)] p-4 text-xs text-[var(--muted)]">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Query</div>
-          <div className="mt-2 font-mono text-[11px] text-[var(--fg)]">
-            changelog = github.prs(base=\"main\").where(label=\"changelog\").last(365d)
-          </div>
+        <div className="mt-4">
+          <ChangelogControls
+            windowDays={windowDays}
+            onWindowDaysChange={setWindowDays}
+            baseLabel="main"
+            onRefresh={() => setRefreshNonce((value) => value + 1)}
+          />
         </div>
       </div>
 
