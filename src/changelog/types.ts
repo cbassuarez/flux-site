@@ -1,4 +1,7 @@
-export type ChangelogChannel = "stable" | "canary" | "nightly" | "unknown";
+export type ChangelogChip = {
+  kind: "type" | "scope" | "channel";
+  value: string;
+};
 
 export type ChangelogAuthor = {
   login: string;
@@ -15,20 +18,23 @@ export type ChangelogItem = {
   diffUrl: string;
   author: ChangelogAuthor | null;
   labels: string[];
-  channel: ChangelogChannel;
-  chips: string[];
-  breaking: boolean;
+  chips: ChangelogChip[];
 };
 
 export type ChangelogSource = {
   repo: string;
-  branches: string[];
+  base: string;
   windowDays: number;
-  label: string;
+};
+
+export type ChangelogPageInfo = {
+  hasNextPage: boolean;
+  endCursor: string | null;
 };
 
 export type ChangelogData = {
   generatedAt: string;
   source: ChangelogSource;
+  pageInfo: ChangelogPageInfo;
   items: ChangelogItem[];
 };
