@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { seededIndex } from "./hero/determinism";
 import { SiteContainer } from "./SiteContainer";
+import { Badge, Button } from "./ui/Button";
 import { isPrerender } from "../lib/prerender";
 
 const ALT_HEADLINES = [
@@ -110,9 +111,9 @@ export function WhatIsFluxSection() {
       <SiteContainer className="relative px-2 sm:px-4 md:px-6">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-1)]/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            <Badge tone="muted" className="bg-[var(--surface-1)]/90 text-[var(--muted)]">
               What is Flux?
-            </div>
+            </Badge>
             <div className="space-y-4">
               <h2 className="text-3xl font-light leading-[1.15] tracking-[-0.02em] text-[var(--fg)] sm:text-4xl">
                 A Flux document is a living specification.
@@ -167,7 +168,7 @@ export function WhatIsFluxSection() {
               One substrate. Many projections.
             </div>
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-3 text-[11px] font-mono text-[var(--muted)]">
-              <label className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
+              <label className="flex items-center gap-1 rounded-[var(--radius-button)] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
                 <span>refresh:</span>
                 <select
                   className="bg-transparent text-[11px] text-[var(--fg)] outline-none"
@@ -189,7 +190,7 @@ export function WhatIsFluxSection() {
                   ))}
                 </select>
               </label>
-              <label className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
+              <label className="flex items-center gap-1 rounded-[var(--radius-button)] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
                 <span>transition:</span>
                 <select
                   className="bg-transparent text-[11px] text-[var(--fg)] outline-none"
@@ -215,24 +216,31 @@ export function WhatIsFluxSection() {
                 />
                 <span>ms)</span>
               </label>
-              <div className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
+              <Badge
+                tone="muted"
+                className="normal-case bg-[var(--surface-2)] text-[var(--fg)] tracking-[0.16em]"
+              >
                 seed: {seed}
-              </div>
+              </Badge>
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <button
+                <Button
                   type="button"
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[11px] font-medium text-[var(--fg)] transition hover:border-[var(--ring)]"
+                  variant="badge"
+                  size="sm"
+                  className="normal-case tracking-[0.12em] text-[var(--fg)]"
                   onClick={() => setDocstep((value) => value + 1)}
                 >
                   Step
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[11px] font-medium text-[var(--fg)] transition hover:border-[var(--ring)]"
+                  variant="badge"
+                  size="sm"
+                  className="normal-case tracking-[0.12em] text-[var(--fg)]"
                   onClick={() => setRunning((value) => !value)}
                 >
                   Auto-run {running ? "on" : "off"}
-                </button>
+                </Button>
               </div>
             </div>
             <div className="text-xs text-[var(--muted)]">
@@ -264,12 +272,12 @@ export function WhatIsFluxSection() {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {["Render", "Export", "Automate"].map((label) => (
-                  <span
+                  <Badge
                     key={label}
-                    className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[11px] font-semibold text-[var(--fg)]"
+                    className="bg-[var(--surface-2)] text-[var(--fg)] text-[11px] tracking-[0.14em]"
                   >
                     {label}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             </div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button } from "../ui/Button";
 
 const windowOptions = [7, 30, 90, 365] as const;
 
@@ -13,14 +14,16 @@ type ChangelogControlsProps = {
 
 function ChipButton({ children, onClick, title }: { children: ReactNode; onClick?: () => void; title?: string }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
       title={title}
-      className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1 text-[11px] font-semibold text-[var(--muted)] transition hover:text-[var(--fg)]"
+      variant="badge"
+      size="sm"
+      className="normal-case tracking-[0.14em] text-[var(--muted)] hover:text-[var(--fg)]"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -34,18 +37,20 @@ function ToggleButton({
   children: ReactNode;
 }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
+      variant="badge"
+      size="sm"
       className={[
-        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+        "normal-case tracking-[0.14em]",
         active
           ? "border-[var(--ring)] bg-[var(--surface-2)] text-[var(--fg)]"
           : "border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)] hover:text-[var(--fg)]",
       ].join(" ")}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 

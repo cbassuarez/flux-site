@@ -6,6 +6,7 @@ import { FigureSlotDemo } from "./FigureSlotDemo";
 import { InlineSlotDemo } from "./InlineSlotDemo";
 import { Page } from "./Page";
 import { isPrerender } from "../../lib/prerender";
+import { Button } from "../ui/Button";
 
 const FLUX_SOURCE = `document {
   meta {
@@ -351,13 +352,16 @@ export function PageStack() {
         )}
 
         <div className="absolute bottom-3 right-3 z-30 flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               advancePage(-1);
             }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-800"
+            variant="solid"
+            size="sm"
+            iconOnly
+            className="border-slate-200 bg-white/90 text-slate-600 hover:border-slate-300 hover:text-slate-800"
             aria-label="Previous page"
           >
             <svg
@@ -369,14 +373,17 @@ export function PageStack() {
             >
               <path d="M12.5 4.5L7.5 10l5 5.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               advancePage(1);
             }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-800"
+            variant="solid"
+            size="sm"
+            iconOnly
+            className="border-slate-200 bg-white/90 text-slate-600 hover:border-slate-300 hover:text-slate-800"
             aria-label="Next page"
           >
             <svg
@@ -388,7 +395,7 @@ export function PageStack() {
             >
               <path d="M7.5 4.5L12.5 10l-5 5.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </button>
+          </Button>
         </div>
       </div>
     </div>
