@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isPrerender } from "../lib/prerender";
 
 type UseDocstepOptions = {
   enabled: boolean;
@@ -32,6 +33,7 @@ export function useDocstep({
   reduceMotion,
   mode = "sequential",
 }: UseDocstepOptions) {
+  const prerenderMode = isPrerender();
   const [step, setStepState] = useState(0);
   const stepRef = useRef(step);
   const deckRef = useRef<number[]>([]);
@@ -44,15 +46,16 @@ export function useDocstep({
 
   useEffect(() => {
     setStepState((current) => clampStep(current, length));
+    if (prerenderMode) return;
     if (mode === "random" && length > 0) {
       deckRef.current = buildDeck(length, stepRef.current);
       posRef.current = Math.max(deckRef.current.indexOf(stepRef.current), 0);
       remainingRef.current = Math.max(deckRef.current.length - 1, 0);
     }
-  }, [length, mode]);
+  }, [length, mode, prerenderMode]);
 
   useEffect(() => {
-    if (!enabled || reduceMotion || length < 2) return undefined;
+    if (prerenderMode || !enabled || reduceMotion || length < 2) return undefined;
     const interval = window.setInterval(() => {
       if (mode === "random") {
         setStepState((current) => {
@@ -78,14 +81,14 @@ export function useDocstep({
       setStepState((current) => (current + 1) % length);
     }, intervalMs);
     return () => window.clearInterval(interval);
-  }, [enabled, intervalMs, reduceMotion, length, mode]);
+  }, [enabled, intervalMs, reduceMotion, length, mode, prerenderMode]);
 
   const setStep = useCallback(
     (value: number | ((current: number) => number)) => {
       setStepState((current) => {
         const nextValue = typeof value === "function" ? value(current) : value;
         const clamped = clampStep(nextValue, length);
-        if (mode === "random" && length > 0) {
+        if (!prerenderMode && mode === "random" && length > 0) {
           if (deckRef.current.length !== length) {
             deckRef.current = buildDeck(length, clamped);
           }

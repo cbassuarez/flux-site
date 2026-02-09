@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
+import { Seo } from "../components/Seo";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 const docsUrl = "/docs";
@@ -174,48 +175,54 @@ export default function ToolingPage() {
   const getStartedUrl = docsUrl;
 
   return (
-    <PageLayout
-      title="Tooling"
-      subtitle="Launcher, CLI, Core library, and editor integrations — one IR."
-      eyebrow={<FluxBrandStrip subtitle="tooling" />}
-      headerSlot={
-        <div className="space-y-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Requires Node ≥ 20
+    <>
+      <Seo
+        title="Tooling — Flux"
+        description="Install the launcher, use the Flux CLI, and connect editor tooling with the shared IR."
+        canonicalPath="/tooling"
+      />
+      <PageLayout
+        title="Tooling"
+        subtitle="Launcher, CLI, Core library, and editor integrations — one IR."
+        eyebrow={<FluxBrandStrip subtitle="tooling" />}
+        headerSlot={
+          <div className="space-y-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              Requires Node ≥ 20
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={getStartedUrl}
+                className="inline-flex items-center justify-center rounded-full flux-gradient-bg px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:shadow-[0_10px_30px_rgba(0,205,254,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+              >
+                Get started
+              </a>
+              <a
+                href={docsUrl}
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-xs font-semibold text-[var(--fg)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+              >
+                Docs
+              </a>
+              <a
+                href={githubUrl}
+                className="inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+            </div>
+            <PageTOC items={tocItems} />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <a
-              href={getStartedUrl}
-              className="inline-flex items-center justify-center rounded-full flux-gradient-bg px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:shadow-[0_10px_30px_rgba(0,205,254,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-            >
-              Get started
-            </a>
-            <a
-              href={docsUrl}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-xs font-semibold text-[var(--fg)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-            >
-              Docs
-            </a>
-            <a
-              href={githubUrl}
-              className="inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub
-            </a>
-          </div>
-          <PageTOC items={tocItems} />
-        </div>
-      }
-    >
-      <section id="overview" className="space-y-3 scroll-mt-24">
-        <h2 className="text-lg font-light text-[var(--fg)]">Tooling From Day One</h2>
-        <p className="text-sm sm:text-base text-[var(--muted)] leading-relaxed">
-          Flux is a language kit: a core library, CLI, and editor tooling that share the same IR. Everything runs
-          locally, so there’s no cloud requirement.
-        </p>
-      </section>
+        }
+      >
+        <section id="overview" className="space-y-3 scroll-mt-24">
+          <h2 className="text-lg font-light text-[var(--fg)]">Tooling From Day One</h2>
+          <p className="text-sm sm:text-base text-[var(--muted)] leading-relaxed">
+            Flux is a language kit: a core library, CLI, and editor tooling that share the same IR. Everything runs
+            locally, so there’s no cloud requirement.
+          </p>
+        </section>
 
       <section id="install" className="space-y-5 scroll-mt-24">
         <div className="space-y-2">
@@ -399,6 +406,7 @@ const state1 = runDocstepOnce(doc, state0);`}
           </ol>
         </div>
       </section>
-    </PageLayout>
+      </PageLayout>
+    </>
   );
 }

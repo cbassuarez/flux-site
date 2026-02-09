@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
+import { Seo } from "../components/Seo";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -76,45 +77,51 @@ function TrackSection({
 
 export default function RoadmapPage() {
   return (
-    <PageLayout
-      title="Roadmap"
-      subtitle="Flux v0.1 focus areas and what comes next."
-      eyebrow={<FluxBrandStrip subtitle="roadmap" />}
-      headerSlot={<PageTOC items={tocItems} />}
-      contentClassName="max-w-6xl"
-    >
-      <section id="overview" className="space-y-6 scroll-mt-24">
-        <div className="space-y-3 max-w-3xl">
-          <h2 className="text-lg font-semibold text-[var(--fg)]">Overview</h2>
-          <p className="text-sm sm:text-base leading-relaxed text-[var(--muted)]">
-            Flux is a versioned spec, a canonical JSON IR contract, and a local-first toolchain that keeps the editor,
-            CLI, and launcher in sync.
-          </p>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-sm">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">What’s included in v0.1</div>
-            <ul className="list-disc space-y-2 pl-5 text-sm text-[var(--muted)]">
-              <li>Launcher model: install via npm, update with <span className="font-mono">flux self update</span>, run via <span className="font-mono">flux</span>.</li>
-              <li>CLI families: <span className="font-mono">open</span>, <span className="font-mono">new</span>, <span className="font-mono">edit</span>, <span className="font-mono">export</span>, <span className="font-mono">doctor</span>, <span className="font-mono">format</span>, <span className="font-mono">self</span>.</li>
-              <li>Local-first editor workflow with local file access by default.</li>
-              <li>Versioned core/spec/IR contract emphasis.</li>
-            </ul>
-          </div>
-          <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-sm">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Status labels</div>
-            <div className="flex flex-wrap gap-2">
-              <StatusPill status="Shipping" />
-              <StatusPill status="In progress" />
-              <StatusPill status="Planned" />
-              <StatusPill status="Exploring" />
-            </div>
-            <p className="text-xs text-[var(--muted)]">
-              Shipping = available in v0.1. In progress and Planned describe near-term work, while Exploring stays tentative.
+    <>
+      <Seo
+        title="Roadmap — Flux"
+        description="Flux v0.1 focus areas and the roadmap for language, tooling, and editor workflows."
+        canonicalPath="/roadmap"
+      />
+      <PageLayout
+        title="Roadmap"
+        subtitle="Flux v0.1 focus areas and what comes next."
+        eyebrow={<FluxBrandStrip subtitle="roadmap" />}
+        headerSlot={<PageTOC items={tocItems} />}
+        contentClassName="max-w-6xl"
+      >
+        <section id="overview" className="space-y-6 scroll-mt-24">
+          <div className="space-y-3 max-w-3xl">
+            <h2 className="text-lg font-semibold text-[var(--fg)]">Overview</h2>
+            <p className="text-sm sm:text-base leading-relaxed text-[var(--muted)]">
+              Flux is a versioned spec, a canonical JSON IR contract, and a local-first toolchain that keeps the editor,
+              CLI, and launcher in sync.
             </p>
           </div>
-        </div>
-      </section>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-sm">
+              <div className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">What’s included in v0.1</div>
+              <ul className="list-disc space-y-2 pl-5 text-sm text-[var(--muted)]">
+                <li>Launcher model: install via npm, update with <span className="font-mono">flux self update</span>, run via <span className="font-mono">flux</span>.</li>
+                <li>CLI families: <span className="font-mono">open</span>, <span className="font-mono">new</span>, <span className="font-mono">edit</span>, <span className="font-mono">export</span>, <span className="font-mono">doctor</span>, <span className="font-mono">format</span>, <span className="font-mono">self</span>.</li>
+                <li>Local-first editor workflow with local file access by default.</li>
+                <li>Versioned core/spec/IR contract emphasis.</li>
+              </ul>
+            </div>
+            <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-sm">
+              <div className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Status labels</div>
+              <div className="flex flex-wrap gap-2">
+                <StatusPill status="Shipping" />
+                <StatusPill status="In progress" />
+                <StatusPill status="Planned" />
+                <StatusPill status="Exploring" />
+              </div>
+              <p className="text-xs text-[var(--muted)]">
+                Shipping = available in v0.1. In progress and Planned describe near-term work, while Exploring stays tentative.
+              </p>
+            </div>
+          </div>
+        </section>
 
       <section id="now" className="space-y-8 scroll-mt-24">
         <div className="space-y-2 max-w-3xl">
@@ -249,6 +256,7 @@ export default function RoadmapPage() {
           <li>Truthful status communication over hype.</li>
         </ul>
       </section>
-    </PageLayout>
+      </PageLayout>
+    </>
   );
 }

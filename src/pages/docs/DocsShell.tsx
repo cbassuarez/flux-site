@@ -4,6 +4,7 @@ import { DocsRenderer } from "./DocsRenderer";
 import { defaultDocSlug, docsSections, getDocsPage } from "./docsMap";
 import { SiteContainer } from "../../components/SiteContainer";
 import ChangelogPage from "./ChangelogPage";
+import { Seo } from "../../components/Seo";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 
@@ -34,6 +35,12 @@ export default function DocsShell() {
   const pageDescription = isChangelog
     ? "Merged PRs labeled changelog, compiled into a first-party feed."
     : page?.description ?? "We couldn't find this doc. Pick a page from the navigation to keep going.";
+  const seoTitle = isChangelog ? "Changelog — Flux Docs" : `${pageTitle} — Flux Docs`;
+  const canonicalPath = isChangelog
+    ? "/docs/changelog"
+    : page
+      ? `/docs/${page.slug}`
+      : location.pathname;
 
   const filteredSections = useMemo(() => {
     if (!filter.trim()) return docsSections;
@@ -54,6 +61,7 @@ export default function DocsShell() {
 
   return (
     <section className="bg-flux-hero py-8 text-slate-900">
+      <Seo title={seoTitle} description={pageDescription} canonicalPath={canonicalPath} />
       <SiteContainer>
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="rounded-3xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.08)] lg:sticky lg:top-6 lg:self-start">

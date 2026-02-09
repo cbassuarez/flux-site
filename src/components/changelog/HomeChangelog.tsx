@@ -4,6 +4,7 @@ import { useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useDocstep } from "../../changelog/useDocstep";
 import { fetchChangelog } from "../../lib/changelogApi";
+import { isPrerender } from "../../lib/prerender";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
 import { SiteContainer } from "../SiteContainer";
 import { ChangelogControls } from "./ChangelogControls";
@@ -14,18 +15,19 @@ const LIMIT = 7;
 const skeletonItems = Array.from({ length: 3 });
 
 export function HomeChangelog() {
+  const prerenderMode = isPrerender();
   const shouldReduceMotion = useReducedMotion();
   const [items, setItems] = useState<ApiChangelogItem[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [windowDays, setWindowDays] = useState(30);
-  const [cursorMode, setCursorMode] = useState<"docstep" | "manual">("docstep");
+  const [cursorMode, setCursorMode] = useState<"docstep" | "manual">(prerenderMode ? "manual" : "docstep");
   const [refreshNonce, setRefreshNonce] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const docstep = useDocstep({
-    enabled: cursorMode === "docstep",
+    enabled: cursorMode === "docstep" && !prerenderMode,
     length: items.length,
     reduceMotion: Boolean(shouldReduceMotion),
     mode: cursorMode === "docstep" ? "random" : "sequential",
@@ -42,6 +44,12 @@ export function HomeChangelog() {
   }, [cursorMode, docstep.step, items.length]);
 
   useEffect(() => {
+    if (prerenderMode) {
+      setItems([]);
+      setStatus("ready");
+      setError(null);
+      return undefined;
+    }
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -60,7 +68,7 @@ export function HomeChangelog() {
       });
 
     return () => controller.abort();
-  }, [refreshNonce, windowDays]);
+  }, [prerenderMode, refreshNonce, windowDays]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (!items.length) return;

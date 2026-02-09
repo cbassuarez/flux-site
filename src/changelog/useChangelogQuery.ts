@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchChangelog } from "../lib/changelogApi";
+import { isPrerender } from "../lib/prerender";
 import type { ChangelogItem as ApiChangelogItem } from "../lib/changelogApi";
 
 type ChangelogData = {
@@ -54,6 +55,7 @@ async function fetchChangelogData(
 }
 
 export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryResult {
+  const prerenderMode = isPrerender();
   const [data, setData] = useState<ChangelogData | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +95,12 @@ export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryR
   };
 
   useEffect(() => {
+    if (prerenderMode) {
+      setStatus("ready");
+      setError(null);
+      setData(null);
+      return undefined;
+    }
     let isMounted = true;
     setStatus("loading");
     setError(null);
@@ -107,9 +115,10 @@ export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryR
       abortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramsKey]);
+  }, [paramsKey, prerenderMode]);
 
   const refresh = () => {
+    if (prerenderMode) return;
     setStatus("loading");
     setError(null);
     void runFetch().catch((err) => {
@@ -120,6 +129,7 @@ export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryR
   };
 
   const loadMore = () => {
+    if (prerenderMode) return;
     if (!data?.pageInfo.hasNextPage || isLoadingMore) return;
     setIsLoadingMore(true);
     void runFetch({ after: data.pageInfo.endCursor, append: true })

@@ -5,6 +5,7 @@ import { seededFloat, seededIndex } from "./determinism";
 import { FigureSlotDemo } from "./FigureSlotDemo";
 import { InlineSlotDemo } from "./InlineSlotDemo";
 import { Page } from "./Page";
+import { isPrerender } from "../../lib/prerender";
 
 const FLUX_SOURCE = `document {
   meta {
@@ -72,6 +73,7 @@ function formatDocstepAdvance(entry: any) {
 }
 
 export function PageStack() {
+  const prerenderMode = isPrerender();
   const prefersReducedMotion = useReducedMotion();
   const intervalMs = prefersReducedMotion ? REDUCED_INTERVAL : DEFAULT_INTERVAL;
   const [docstep, setDocstep] = useState(INITIAL_DOCSTEP);
@@ -251,11 +253,12 @@ export function PageStack() {
   }, []);
 
   useEffect(() => {
+    if (prerenderMode) return undefined;
     const id = window.setInterval(() => {
       advanceDocstep();
     }, intervalMs);
     return () => window.clearInterval(id);
-  }, [advanceDocstep, intervalMs]);
+  }, [advanceDocstep, intervalMs, prerenderMode]);
 
   const advancePage = useCallback(
     (direction: number) => {
