@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseChangelogData } from "./schema";
-import type { ChangelogData } from "./types";
+import { fetchChangelog } from "../lib/changelogApi";
+import type { ChangelogItem as ApiChangelogItem } from "../lib/changelogApi";
+
+type ChangelogData = {
+  generatedAt: string;
+  source: { repo: string; base: string };
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  items: ApiChangelogItem[];
+};
 
 type ChangelogQueryParams = {
-  base?: string;
   windowDays?: number;
   first?: number;
 };
@@ -17,50 +23,34 @@ type ChangelogQueryResult = {
   isLoadingMore: boolean;
 };
 
-function buildQueryString(params: Record<string, string | number | undefined>) {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-    query.set(key, String(value));
-  });
-  return query.toString();
-}
+const toWindow = (windowDays?: number) => (windowDays ? `${windowDays}d` : undefined);
 
-async function fetchChangelog(
+async function fetchChangelogData(
   params: {
-    base?: string;
     windowDays?: number;
     first?: number;
     after?: string | null;
-    cb?: number;
   },
   signal?: AbortSignal
-) {
-  const query = buildQueryString({
-    base: params.base,
-    windowDays: params.windowDays,
-    first: params.first,
-    after: params.after ?? undefined,
-    cb: params.cb ?? undefined,
-  });
-  const response = await fetch(`/api/changelog?${query}`, { signal });
-  if (!response.ok) {
-    const text = await response.text();
-    let message = `Failed to load changelog: ${response.status}`;
-    if (text) {
-      try {
-        const payload = JSON.parse(text) as { error?: string };
-        if (payload?.error) message = payload.error;
-      } catch {
-        message = text;
-      }
-    }
-    throw new Error(message.trim());
-  }
-  const json = (await response.json()) as unknown;
-  const parsed = parseChangelogData(json);
-  if (!parsed) throw new Error("Invalid changelog response");
-  return parsed;
+): Promise<ChangelogData> {
+  const response = await fetchChangelog(
+    {
+      window: toWindow(params.windowDays),
+      limit: params.first,
+      cursor: params.after ?? undefined,
+    },
+    signal
+  );
+
+  return {
+    generatedAt: response.generatedAt,
+    source: { repo: response.source.repo, base: response.source.branch },
+    pageInfo: {
+      hasNextPage: Boolean(response.nextCursor),
+      endCursor: response.nextCursor ?? null,
+    },
+    items: response.items,
+  };
 }
 
 export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryResult {
@@ -69,22 +59,20 @@ export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryR
   const [error, setError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const paramsKey = useMemo(
-    () => JSON.stringify({ base: params.base, windowDays: params.windowDays, first: params.first }),
-    [params.base, params.windowDays, params.first]
+    () => JSON.stringify({ windowDays: params.windowDays, first: params.first }),
+    [params.windowDays, params.first]
   );
   const abortRef = useRef<AbortController | null>(null);
 
-  const runFetch = async (options?: { after?: string | null; cb?: number; append?: boolean }) => {
+  const runFetch = async (options?: { after?: string | null; append?: boolean }) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    const payload = await fetchChangelog(
+    const payload = await fetchChangelogData(
       {
-        base: params.base,
         windowDays: params.windowDays,
         first: params.first,
         after: options?.after,
-        cb: options?.cb,
       },
       controller.signal
     );
@@ -124,7 +112,7 @@ export function useChangelogQuery(params: ChangelogQueryParams): ChangelogQueryR
   const refresh = () => {
     setStatus("loading");
     setError(null);
-    void runFetch({ cb: Date.now() }).catch((err) => {
+    void runFetch().catch((err) => {
       if ((err as Error).name === "AbortError") return;
       setStatus("error");
       setError((err as Error).message ?? "Failed to refresh changelog");
