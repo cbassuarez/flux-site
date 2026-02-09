@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { SiteContainer } from "./SiteContainer";
 import { FLUX_VERSION } from "../config/fluxMeta";
 import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
+import { useTheme } from "../lib/theme";
 
 const FOOTER_LINKS = [
   {
@@ -41,6 +42,13 @@ const FOOTER_LINKS = [
 
 export function Footer() {
   const releaseVersion = useFluxReleaseVersion(FLUX_VERSION ?? "0.0.0-dev");
+  const { theme } = useTheme();
+  const fluxBadgeThemeClassName =
+    theme === "dark"
+      ? "border-slate-700 bg-slate-900/90 text-slate-100 hover:border-sky-400/50 hover:bg-slate-900 focus-visible:ring-sky-400 focus-visible:ring-offset-slate-900"
+      : theme === "blueprint"
+        ? "border-sky-900/40 bg-sky-950/85 text-sky-100 hover:border-cyan-300/60 hover:bg-sky-950 focus-visible:ring-cyan-300 focus-visible:ring-offset-sky-950"
+        : undefined;
   const copyInstallCommand = () => {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
     void navigator.clipboard.writeText("npm i -g @flux-lang/flux");
@@ -59,7 +67,7 @@ export function Footer() {
             <div className="space-y-3">
               <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">Badges</div>
               <div className="flex flex-wrap items-center gap-2">
-                <FluxBadge version={releaseVersion} />
+                <FluxBadge version={releaseVersion} className={fluxBadgeThemeClassName} />
                 <ChannelBadge
                   channel="stable"
                   packageName="@flux-lang/flux"

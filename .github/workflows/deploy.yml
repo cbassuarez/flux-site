@@ -5,7 +5,9 @@ on:
     branches:
       - main
     paths-ignore:
-      - "badges/**"
+      - "badges/generated/**"
+      - "README.md"
+      - "packages/*/README.md"
 
 permissions:
   contents: read
@@ -85,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          DEFAULT_BRANCH="main"
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -97,7 +99,7 @@ jobs:
           npm run badges:generate
 
           add_paths=()
-          for path in badges/generated; do
+          for path in badges/generated README.md packages/*/README.md; do
             if [ -e "${path}" ]; then
               add_paths+=("${path}")
             fi
@@ -115,7 +117,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore(badges): regenerate SVGs [skip release] [skip ci]"
+          git commit -m "chore(badges): regenerate SVGs [skip release]"
 
           if ! git push origin "HEAD:${DEFAULT_BRANCH}"; then
             echo "::error::Badge push failed. Configure GitHub Actions to push directly to ${DEFAULT_BRANCH}."
