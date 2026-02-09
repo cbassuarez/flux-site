@@ -1,6 +1,7 @@
 import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
+import { Badge, ButtonAnchor } from "../components/ui/Button";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -30,22 +31,6 @@ function CodePanel({
         <code>{children}</code>
       </pre>
     </div>
-  );
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className={[
-        "inline-flex items-center whitespace-nowrap",
-        "h-7 rounded-full",
-        "border border-slate-200 bg-white",
-        "px-3 text-[11px] font-semibold leading-none text-slate-700",
-        "shadow-sm",
-      ].join(" ")}
-    >
-      {children}
-    </span>
   );
 }
 
@@ -180,11 +165,11 @@ so the same inputs always yield the same outputs.`;
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <div className="lg:col-span-7">
           <section id="overview" className="space-y-4 scroll-mt-24">
-             <div className="flex flex-wrap items-center gap-2 leading-none">
-              <Chip>v0.2.0</Chip>
-              <Chip>offline-first</Chip>
-              <Chip>seeded</Chip>
-              <Chip>paged HTML + PDF</Chip>
+            <div className="flex flex-wrap items-center gap-2 leading-none">
+              <Badge className="normal-case bg-white text-slate-700">v0.2.0</Badge>
+              <Badge className="normal-case bg-white text-slate-700">offline-first</Badge>
+              <Badge className="normal-case bg-white text-slate-700">seeded</Badge>
+              <Badge className="normal-case bg-white text-slate-700">paged HTML + PDF</Badge>
             </div>
 
             <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
@@ -209,20 +194,18 @@ so the same inputs always yield the same outputs.`;
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
-              <a
-                href="/editor"
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
-              >
+              <ButtonAnchor href="/editor" variant="glass" size="sm">
                 Open Viewer Demo
-              </a>
-              <a
+              </ButtonAnchor>
+              <ButtonAnchor
                 href="https://github.com/cbassuarez/flux"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900 transition-colors"
+                variant="solid"
+                size="sm"
               >
                 Source (GitHub)
-              </a>
+              </ButtonAnchor>
             </div>
           </section>
         </div>
@@ -368,22 +351,18 @@ so the same inputs always yield the same outputs.`;
           Remote assets (if supported) should require explicit opt-in allowlisting.
         </p>
         <div className="mt-3 flex flex-wrap gap-3">
-          <a
-            href="https://github.com/cbassuarez/flux"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900 transition-colors"
-          >
+          <ButtonAnchor href="https://github.com/cbassuarez/flux" target="_blank" rel="noreferrer" variant="solid" size="sm">
             Flux repo
-          </a>
-          <a
+          </ButtonAnchor>
+          <ButtonAnchor
             href="https://github.com/cbassuarez/flux/tree/main/packages/core"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900 transition-colors"
+            variant="solid"
+            size="sm"
           >
             Core package
-          </a>
+          </ButtonAnchor>
         </div>
       </section>
     </PageLayout>

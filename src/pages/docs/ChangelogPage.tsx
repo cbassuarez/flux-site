@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChangelogControls } from "../../components/changelog/ChangelogControls";
 import { ChangelogItem } from "../../components/changelog/ChangelogItem";
+import { Button } from "../../components/ui/Button";
 import { fetchChangelog } from "../../lib/changelogApi";
 import { isPrerender } from "../../lib/prerender";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
@@ -120,14 +121,15 @@ export default function ChangelogPage() {
 
       {nextCursor ? (
         <div className="flex flex-col items-center gap-3">
-          <button
+          <Button
             type="button"
             onClick={loadMore}
-            className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-xs font-semibold text-[var(--fg)] shadow-sm hover:border-[var(--ring)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+            variant="solid"
+            size="sm"
             disabled={isLoadingMore}
           >
             {isLoadingMore ? "Loading..." : "Load more"}
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>

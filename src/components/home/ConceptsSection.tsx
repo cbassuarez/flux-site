@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { SiteContainer } from "../SiteContainer";
+import { Button } from "../ui/Button";
 import {
   BlocksIcon,
   CalculatorIcon,
@@ -86,26 +87,27 @@ export function ConceptsSection() {
             const isActive = activeIndex === index;
 
             return (
-              <button
+              <Button
                 key={concept.title}
                 type="button"
                 id={buttonId}
                 aria-controls={panelId}
                 aria-pressed={isActive}
                 onClick={() => setActiveIndex(index)}
+                variant="badge"
+                size="sm"
                 className={[
-                  "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]",
+                  "normal-case gap-2 text-sm tracking-[0.14em]",
                   isActive
                     ? "border-[var(--ring)] bg-[var(--surface-2)] text-[var(--fg)]"
-                    : "border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)] hover:border-[var(--ring)] hover:text-[var(--fg)]",
+                    : "text-[var(--muted)] hover:text-[var(--fg)]",
                 ].join(" ")}
               >
                 <span className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1.5 text-[var(--fg)]">
                   <Icon className="h-4 w-4" />
                 </span>
                 {concept.title}
-              </button>
+              </Button>
             );
           })}
         </div>

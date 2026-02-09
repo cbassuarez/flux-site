@@ -6,6 +6,7 @@ import { FluxBrandHeader } from "@flux-lang/brand/web";
 import { getFluxVersionInfo } from "../lib/versionInfo";
 import { useFluxReleaseVersion } from "../lib/useFluxReleaseVersion";
 import { SiteContainer } from "./SiteContainer";
+import { Button, ButtonAnchor } from "./ui/Button";
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview" },
@@ -16,6 +17,14 @@ const NAV_ITEMS = [
 ];
 const SITE_TITLE = "Flux";
 const SITE_TAGLINE = "Language + toolchain for scores";
+
+function GitHubIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.52 2.87 8.36 6.84 9.72.5.1.68-.22.68-.48 0-.24-.01-.86-.01-1.7-2.78.62-3.37-1.38-3.37-1.38-.46-1.2-1.12-1.52-1.12-1.52-.92-.65.07-.64.07-.64 1.02.07 1.56 1.08 1.56 1.08.9 1.6 2.36 1.14 2.94.87.09-.67.35-1.14.63-1.4-2.22-.26-4.56-1.14-4.56-5.08 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.32.1-2.74 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 2.5-.35c.85 0 1.7.12 2.5.35 1.9-1.33 2.74-1.05 2.74-1.05.56 1.42.21 2.48.1 2.74.64.72 1.02 1.63 1.02 2.75 0 3.95-2.34 4.82-4.57 5.07.36.33.68.96.68 1.94 0 1.4-.01 2.54-.01 2.89 0 .26.18.58.69.48A10.01 10.01 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z" />
+    </svg>
+  );
+}
 
 export function Header() {
   const navigate = useNavigate();
@@ -121,23 +130,28 @@ export function Header() {
               }}
             </NavLink>
           ))}
-          <motion.a
+          <ButtonAnchor
             href="https://github.com/cbassuarez/flux"
-            className="rounded-md hover:text-[var(--fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+            variant="ghost"
+            size="sm"
+            iconOnly
+            className="text-[var(--muted)] hover:text-[var(--fg)]"
             target="_blank"
             rel="noreferrer"
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.97 }}
-            aria-label="Flux GitHub repository"
+            aria-label="GitHub"
           >
-            GitHub
-          </motion.a>
+            <GitHubIcon className="h-4 w-4" />
+            <span className="sr-only">GitHub</span>
+          </ButtonAnchor>
         </nav>
 
-        <button
+        <Button
           type="button"
           onClick={toggleMenu}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--fg)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)] md:hidden"
+          variant="solid"
+          size="sm"
+          iconOnly
+          className="md:hidden"
           aria-label={isOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={isOpen}
         >
@@ -159,7 +173,7 @@ export function Header() {
               }`}
             />
           </span>
-        </button>
+        </Button>
       </SiteContainer>
 
       <AnimatePresence>
@@ -197,13 +211,18 @@ export function Header() {
                   </li>
                 ))}
                 <li>
-                  <a
+                  <ButtonAnchor
                     href="https://github.com/cbassuarez/flux"
                     onClick={closeMenu}
-                    className="block rounded-lg px-2 py-2.5 transition hover:bg-[var(--surface-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    className="w-fit"
+                    aria-label="GitHub"
                   >
-                    GitHub
-                  </a>
+                    <GitHubIcon className="h-4 w-4" />
+                    <span className="sr-only">GitHub</span>
+                  </ButtonAnchor>
                 </li>
               </ul>
             </div>

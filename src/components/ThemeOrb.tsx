@@ -131,7 +131,7 @@ export function ThemeOrb() {
           aria-controls={popoverId}
           onClick={() => setIsOpen((prev) => !prev)}
           className={[
-            "flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)]",
+            "flex h-9 w-9 items-center justify-center rounded-[var(--radius-button)] border border-[var(--border)]",
             "bg-[var(--surface-1)] text-[var(--fg)] shadow-sm",
             "transition focus-visible:outline-none focus-visible:ring-2",
             "focus-visible:ring-[color-mix(in_srgb,#22d3ee_60%,#22c55e_60%)]",
@@ -170,7 +170,7 @@ export function ThemeOrb() {
                     setIsOpen(false);
                   }}
                   className={[
-                    "relative flex h-8 w-8 items-center justify-center rounded-full",
+                    "relative flex h-8 w-8 items-center justify-center rounded-[var(--radius-button)]",
                     "text-[var(--fg)] transition focus-visible:outline-none focus-visible:ring-2",
                     "focus-visible:ring-[color-mix(in_srgb,#22d3ee_60%,#22c55e_60%)]",
                     isActive
