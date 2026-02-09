@@ -1,5 +1,6 @@
 import { useReducedMotion } from "framer-motion";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
+import { Badge, Button } from "../ui/Button";
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -68,39 +69,44 @@ export function ChangelogItem({ item, isSelected, onOpen, onViewDiff }: Props) {
           {chips.length ? (
             <div className="flex flex-wrap gap-2">
               {chips.map((chip) => (
-                <span
+                <Badge
                   key={`${item.id}-${chip}`}
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]"
+                  tone="muted"
+                  className="text-[10px] tracking-[0.16em]"
                 >
                   {chip}
-                </span>
+                </Badge>
               ))}
             </div>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               onOpen(item);
             }}
-            className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--fg)] hover:border-[var(--ring)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+            variant="badge"
+            size="sm"
+            className="normal-case tracking-[0.12em]"
             aria-label={`Open pull request: ${item.title}`}
           >
             Open PR
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               onViewDiff(item);
             }}
-            className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--fg)] hover:border-[var(--ring)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
+            variant="badge"
+            size="sm"
+            className="normal-case tracking-[0.12em]"
             aria-label={`View diff for: ${item.title}`}
           >
             View diff
-          </button>
+          </Button>
         </div>
       </div>
     </article>

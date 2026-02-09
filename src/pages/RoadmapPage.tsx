@@ -3,6 +3,7 @@ import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
 import { Seo } from "../components/Seo";
+import { Badge } from "../components/ui/Button";
 
 const tocItems = [
   { id: "overview", label: "Overview" },
@@ -27,14 +28,13 @@ const statusClasses: Record<StatusLabel, string> = {
 
 function StatusPill({ status }: { status: StatusLabel }) {
   return (
-    <span
+    <Badge
       className={[
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]",
         statusClasses[status],
       ].join(" ")}
     >
       {status}
-    </span>
+    </Badge>
   );
 }
 

@@ -4,9 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { WhatIsFluxSection } from "./WhatIsFluxSection";
 
 vi.mock("framer-motion", () => ({
-  motion: {
-    span: ({ children, ...props }: { children: React.ReactNode }) => <span {...props}>{children}</span>,
-  },
+  motion: new Proxy(
+    {},
+    {
+      get: (_, tag: string) =>
+        ({ children, ...props }: { children: React.ReactNode }) => {
+          const Tag = tag as keyof JSX.IntrinsicElements;
+          return <Tag {...props}>{children}</Tag>;
+        },
+    },
+  ),
   useReducedMotion: () => true,
 }));
 

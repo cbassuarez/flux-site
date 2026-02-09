@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useReducedMotion } from "framer-motion";
-import { Link } from "react-router-dom";
 import { useDocstep } from "../../changelog/useDocstep";
 import { fetchChangelog } from "../../lib/changelogApi";
 import { isPrerender } from "../../lib/prerender";
 import type { ChangelogItem as ApiChangelogItem } from "../../lib/changelogApi";
 import { SiteContainer } from "../SiteContainer";
+import { ButtonLink } from "../ui/Button";
 import { ChangelogControls } from "./ChangelogControls";
 import { ChangelogItem } from "./ChangelogItem";
 
@@ -131,13 +131,10 @@ export function HomeChangelog() {
             />
 
             <div>
-              <Link
-                to="/docs/changelog"
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-xs font-semibold text-[var(--fg)] transition hover:border-[var(--ring)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-              >
+              <ButtonLink to="/docs/changelog" variant="solid" size="sm" className="gap-2">
                 View full changelog
                 <span aria-hidden>→</span>
-              </Link>
+              </ButtonLink>
             </div>
           </div>
 

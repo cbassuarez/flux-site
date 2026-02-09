@@ -3,6 +3,7 @@ import { PageLayout } from "../components/PageLayout";
 import { PageTOC } from "../components/PageTOC";
 import { FluxBrandStrip } from "../components/branding/FluxBrandStrip";
 import { Seo } from "../components/Seo";
+import { Badge, Button, ButtonAnchor } from "../components/ui/Button";
 
 const githubUrl = "https://github.com/cbassuarez/flux";
 const docsUrl = "/docs";
@@ -109,14 +110,16 @@ function CopyButton({ text }: { text: string }) {
   }, [text]);
 
   return (
-    <button
+    <Button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]"
+      variant="badge"
+      size="sm"
+      className="normal-case tracking-[0.12em] bg-[var(--surface-3)] text-[var(--muted)] hover:text-[var(--fg)]"
       aria-live="polite"
     >
       {copied ? "Copied" : "Copy"}
-    </button>
+    </Button>
   );
 }
 
@@ -191,26 +194,15 @@ export default function ToolingPage() {
               Requires Node ≥ 20
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <a
-                href={getStartedUrl}
-                className="inline-flex items-center justify-center rounded-full flux-gradient-bg px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:shadow-[0_10px_30px_rgba(0,205,254,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-              >
+              <ButtonAnchor href={getStartedUrl} variant="glass" size="sm">
                 Get started
-              </a>
-              <a
-                href={docsUrl}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-xs font-semibold text-[var(--fg)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-              >
+              </ButtonAnchor>
+              <ButtonAnchor href={docsUrl} variant="solid" size="sm">
                 Docs
-              </a>
-              <a
-                href={githubUrl}
-                className="inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-0)]"
-                target="_blank"
-                rel="noreferrer"
-              >
+              </ButtonAnchor>
+              <ButtonAnchor href={githubUrl} variant="ghost" size="sm" target="_blank" rel="noreferrer">
                 GitHub
-              </a>
+              </ButtonAnchor>
             </div>
             <PageTOC items={tocItems} />
           </div>
@@ -281,9 +273,9 @@ export default function ToolingPage() {
                   {command.name}
                 </div>
                 <p className="mt-2 text-sm text-[var(--muted)] leading-relaxed">{command.description}</p>
-                <div className="mt-3 inline-flex rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-mono text-[var(--fg)]">
+                <Badge className="mt-3 normal-case bg-[var(--surface-2)] text-[11px] tracking-[0.16em] font-mono text-[var(--fg)]">
                   {command.usage}
-                </div>
+                </Badge>
               </div>
             ))}
           </div>
@@ -305,9 +297,9 @@ export default function ToolingPage() {
             >
               <div className="text-sm font-semibold text-[var(--fg)]">{task.title}</div>
               <p className="mt-1 text-sm text-[var(--muted)]">{task.description}</p>
-              <div className="mt-2 inline-flex rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-mono text-[var(--fg)]">
+              <Badge className="mt-2 normal-case bg-[var(--surface-2)] text-[11px] tracking-[0.16em] font-mono text-[var(--fg)]">
                 {task.command}
-              </div>
+              </Badge>
             </div>
           ))}
         </div>

@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SiteContainer } from "../SiteContainer";
-import { buttonClasses } from "../ui/Button";
+import { Button, ButtonAnchor } from "../ui/Button";
 
 const COMMUNITY_URL = "https://github.com/cbassuarez/flux/discussions";
 
@@ -65,28 +65,24 @@ export function ShareWorkCTA() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button
+              <Button
                 ref={triggerRef}
                 type="button"
                 onClick={() => setIsOpen(true)}
                 aria-haspopup="dialog"
                 aria-expanded={isOpen}
-                className={buttonClasses({
-                  variant: "primary",
-                  size: "md",
-                  className: "flux-gradient-bg text-white shadow-sm",
-                })}
               >
                 Share a document
-              </button>
-              <a
+              </Button>
+              <ButtonAnchor
                 href={COMMUNITY_URL}
                 target="_blank"
                 rel="noreferrer"
-                className={buttonClasses({ variant: "secondary", size: "md" })}
+                variant="solid"
+                size="md"
               >
                 Join the community
-              </a>
+              </ButtonAnchor>
             </div>
           </div>
         </div>
@@ -295,13 +291,14 @@ function ShareWorkModal({ onClose, triggerRef, shouldReduceMotion }: ShareWorkMo
               Share a .flux document
             </h3>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className={buttonClasses({ variant: "ghost", size: "sm" })}
+            variant="ghost"
+            size="sm"
           >
             Close
-          </button>
+          </Button>
         </div>
 
         <p id={helperId} className="mt-3 text-sm text-[var(--muted)]">
@@ -526,24 +523,22 @@ function ShareWorkModal({ onClose, triggerRef, shouldReduceMotion }: ShareWorkMo
           </label>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
+            <Button
               type="submit"
               disabled={!isFormEnabled || status === "submitting"}
-              className={buttonClasses({
-                variant: "primary",
-                size: "md",
-                className: "flux-gradient-bg text-white shadow-sm",
-              })}
+              variant="glass"
+              size="md"
             >
               {status === "submitting" ? "Submitting…" : "Submit"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
-              className={buttonClasses({ variant: "secondary", size: "md" })}
+              variant="solid"
+              size="md"
             >
               Close
-            </button>
+            </Button>
           </div>
         </form>
       </motion.div>

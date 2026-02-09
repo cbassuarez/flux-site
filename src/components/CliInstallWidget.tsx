@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useCallback, useState } from "react";
+import { Button } from "./ui/Button";
 
 const installCommand = "npm i -g @flux-lang/flux";
 
@@ -31,15 +32,15 @@ export function CliInstallWidget() {
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
             I. Install via npm
           </span>
-          <motion.button
+          <Button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 text-[11px] font-medium text-[var(--muted)] shadow-sm transition hover:border-[var(--ring)] hover:text-[var(--fg)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+            variant="badge"
+            size="sm"
+            className="normal-case tracking-[0.12em] text-[var(--muted)] hover:text-[var(--fg)]"
           >
             {copied ? "Copied" : "Copy"}
-          </motion.button>
+          </Button>
         </div>
         <code className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--fg)]">
           {installCommand}
