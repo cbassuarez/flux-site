@@ -11,8 +11,14 @@ const TEXT_EXTENSIONS = new Set([
   ".txt",
 ]);
 
-const PRIVATE_NET_REGEX =
-  /(https?:\/\/|wss?:\/\/|\/\/)(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})/g;
+const PRIVATE_NET_HOST =
+  "(?:localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|192\\.168\\.\\d{1,3}\\.\\d{1,3}|10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|172\\.(?:1[6-9]|2\\d|3[0-1])\\.\\d{1,3}\\.\\d{1,3})";
+
+const PRIVATE_NET_REGEX = new RegExp(
+  `(?:https?:\\/\\/|wss?:\\/\\/|\\/\\/)(?:${PRIVATE_NET_HOST})(?::\\d+)?(?:[/?#]|$)|` +
+    `(?:^|[^\\w])(?:${PRIVATE_NET_HOST}):\\d+(?:[/?#]|$)`,
+  "g",
+);
 
 async function collectFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
