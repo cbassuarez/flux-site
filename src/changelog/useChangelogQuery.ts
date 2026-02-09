@@ -45,15 +45,17 @@ async function fetchChangelog(
   });
   const response = await fetch(`/api/changelog?${query}`, { signal });
   if (!response.ok) {
+    const text = await response.text();
     let message = `Failed to load changelog: ${response.status}`;
-    try {
-      const payload = (await response.json()) as { error?: string };
-      if (payload?.error) message = payload.error;
-    } catch {
-      const text = await response.text();
-      if (text) message = text;
+    if (text) {
+      try {
+        const payload = JSON.parse(text) as { error?: string };
+        if (payload?.error) message = payload.error;
+      } catch {
+        message = text;
+      }
     }
-    throw new Error(message);
+    throw new Error(message.trim());
   }
   const json = (await response.json()) as unknown;
   const parsed = parseChangelogData(json);
