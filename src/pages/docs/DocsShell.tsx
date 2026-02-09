@@ -32,7 +32,7 @@ export default function DocsShell() {
   const page = isChangelog ? null : getDocsPage(slug) ?? null;
   const pageTitle = isChangelog ? "Changelog" : page?.title ?? "Page Not Found";
   const pageDescription = isChangelog
-    ? "Merged PRs labeled changelog, compiled into a local feed."
+    ? "Merged PRs labeled changelog, compiled into a first-party feed."
     : page?.description ?? "We couldn't find this doc. Pick a page from the navigation to keep going.";
 
   const filteredSections = useMemo(() => {
